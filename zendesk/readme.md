@@ -19,20 +19,20 @@ This script syncs ticket data from Zendesk to a Dust datasource. It retrieves ti
 ## Setup
 
 1. Clone this repository:
-   \```
+   ```
    git clone https://github.com/your-username/zendesk-to-dust-sync.git
    cd zendesk-to-dust-sync
-   \```
+   ```
 
 2. Create a `.env` file in the project root with the following variables:
-   \```
+   ```
    ZENDESK_SUBDOMAIN=your-zendesk-subdomain
    ZENDESK_EMAIL=your-zendesk-email
    ZENDESK_API_TOKEN=your-zendesk-api-token
    DUST_API_KEY=your-dust-api-key
    DUST_WORKSPACE_ID=your-dust-workspace-id
    DUST_DATASOURCE_ID=your-dust-datasource-id
-   \```
+   ```
 
    Replace the values with your actual Zendesk and Dust credentials.
 
@@ -40,9 +40,9 @@ This script syncs ticket data from Zendesk to a Dust datasource. It retrieves ti
 
 Run the script using:
 
-\```
+```
 npx tsx zendesk.ts
-\```
+```
 
 The script will:
 1. Fetch tickets updated in the last 24 hours from Zendesk
@@ -60,9 +60,9 @@ It's recommended to run this script regularly to keep your Dust datasource up-to
 
 For example, to run the script daily, you could set up a cron job like this:
 
-\```
+```
 0 1 * * * cd /path/to/zendesk-to-dust-sync && /usr/bin/npx tsx zendesk.ts >> /path/to/logfile.log 2>&1
-\```
+```
 
 This would run the script every day at 1:00 AM.
 
