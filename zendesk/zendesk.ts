@@ -9,6 +9,8 @@ const ZENDESK_API_TOKEN = process.env.ZENDESK_API_TOKEN;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
+// 24 hours ago in seconds
+const TICKETS_UPDATED_SINCE = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
 
 const zendeskApi = axios.create({
   baseURL: `https://${ZENDESK_SUBDOMAIN}.zendesk.com/api/v2`,
@@ -78,13 +80,12 @@ async function getTicketsUpdatedLast24Hours(): Promise<number[]> {
   let nextPage: string | null = null;
   let currentPage = 1;
   let totalCount = 0;
-  const startTime = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
 
   do {
     try {
       const response = await zendeskApi.get('/incremental/tickets.json', {
         params: {
-          start_time: startTime,
+          start_time: TICKETS_UPDATED_SINCE,
           include: 'comment_count',
           ...(nextPage ? { cursor: nextPage } : {})
         }
