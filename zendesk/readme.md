@@ -14,6 +14,7 @@ This script syncs ticket data from Zendesk to a Dust datasource. It retrieves ti
 - Node.js (v14 or later recommended)
 - A Zendesk account with API access
 - A Dust account with API access
+- A way to run this script on your side every 24h (cron, etc.)
 
 ## Setup
 
