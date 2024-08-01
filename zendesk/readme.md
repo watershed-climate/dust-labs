@@ -17,6 +17,7 @@ This script exports Zendesk tickets updated in the last 24 hours to a Dust datas
 - npm (comes with Node.js)
 - A Zendesk account with API access
 - A Dust account with API access
+- A way to run this script on your side every 24h (cron, etc.)
 
 ## Installation
 
