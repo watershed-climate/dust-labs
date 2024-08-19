@@ -5,6 +5,48 @@ This script synchronizes account data from Salesforce to Dust, updating a specif
 ## Usage example
 ![Example usage of the script](https://i.ibb.co/c2yZGgY/Screenshot-2024-08-19-at-17-32-01.png)
 
+Example of account summary added to the Dust datasource: 
+
+```
+Account Summary for Burlington Textiles Corp of America
+
+Basic Account Details:
+Company Name: Burlington Textiles Corp of America
+Industry: Apparel
+Annual Revenue: $350,000,000
+Number of Employees: 9000
+Phone: (336) 222-7000
+Website: www.burlington.com
+
+Locations:
+Billing Address: 525 S. Lexington Ave, Burlington, NC, 27215, USA
+Shipping Address: 
+
+Key Contacts:
+No contacts found
+
+Account Status:
+Type: Customer - Direct
+Rating: Warm
+Account Source: N/A
+Created Date: 2022-10-17T08:54:06.000+0000
+Last Modified Date: 2022-10-17T08:54:06.000+0000
+Last Activity Date: 2022-11-23
+
+Sales Information:
+Open Opportunities:
+- Express Logistics Portable Truck Generators
+    Stage: Qualification, Amount: $8,889, Close Date: 2024-11-23
+    Last Modified: 2024-08-19T14:06:45.000+0000
+
+Account Health:
+Recent Support Cases:
+No recent support cases
+
+Additional Information:
+No additional information provided.
+```
+
 ## Features
 
 - Supports both username/password and OAuth 2.0 authentication methods for Salesforce
