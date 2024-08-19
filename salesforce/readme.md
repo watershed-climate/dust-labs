@@ -104,7 +104,7 @@ Choose either the username/password or OAuth 2.0 authentication method and set t
 Run the script with:
 
 ```bash
-npm start
+npx tsx account-summaries-to-dust.ts
 ```
 
 The script will:
