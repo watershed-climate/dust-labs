@@ -2,6 +2,9 @@
 
 This script synchronizes account data from Salesforce to Dust, updating a specified Dust datasource with the latest account information. It's designed to run periodically, fetching recently updated accounts and their related data from Salesforce, then formatting and uploading this information to Dust.
 
+## Usage example
+![Example usage of the script](https://i.ibb.co/c2yZGgY/Screenshot-2024-08-19-at-17-32-01.png)
+
 ## Features
 
 - Supports both username/password and OAuth 2.0 authentication methods for Salesforce
