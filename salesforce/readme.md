@@ -37,7 +37,7 @@ This script synchronizes account data from Salesforce to Dust, updating a specif
 Create a `.env` file in the root directory of the project with the following variables:
 
 ```env
-SF_LOGIN_URL=https://login.salesforce.com
+SF_LOGIN_URL=your_sfdc_login_url
 DUST_API_KEY=your_dust_api_key
 DUST_WORKSPACE_ID=your_dust_workspace_id
 DUST_DATASOURCE_ID_SALESFORCE=your_dust_datasource_id
