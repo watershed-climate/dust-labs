@@ -18,9 +18,13 @@ const SF_CLIENT_ID = process.env.SF_CLIENT_ID;
 const SF_CLIENT_SECRET = process.env.SF_CLIENT_SECRET;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
-const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID_SALESFORCE;
+const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 const UPDATED_SINCE = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 const THREADS_NUMBER = 5;
+
+if (!SF_LOGIN_URL || !(SF_USERNAME && SF_PASSWORD && SF_SECURITY_TOKEN) || !(SF_CLIENT_ID && SF_CLIENT_SECRET) || !DUST_API_KEY || !DUST_WORKSPACE_ID || !DUST_DATASOURCE_ID) {
+  throw new Error('Please provide values for SF_LOGIN_URL, SF_USERNAME, SF_PASSWORD, SF_SECURITY_TOKEN, SF_CLIENT_ID, SF_CLIENT_SECRET, DUST_API_KEY, DUST_WORKSPACE_ID, and DUST_DATASOURCE_ID_SALESFORCE in .env file.');
+}
 
 const dustApi = axios.create({
   baseURL: 'https://dust.tt/api/v1',
