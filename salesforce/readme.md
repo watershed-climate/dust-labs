@@ -1,9 +1,9 @@
 # Salesforce to Dust Data Sync
 
-This script synchronizes account data from Salesforce to Dust, updating a specified Dust datasource with the latest account information. It's designed to run periodically, fetching recently updated accounts and their related data from Salesforce, then formatting and uploading this information to Dust.
+This script is a multi-threaded Node.js application designed to import Salesforce account data into Dust datasources. It fetches recently updated accounts from Salesforce, including related contacts, opportunities, and cases, and then uploads this information to a specified Dust datasource.
 
 ## Usage example
-![Example usage of the script](https://i.ibb.co/PCHQcqv/Screenshot-2024-08-20-at-09-15-30.png)
+![Example usage of the script](https://i.ibb.co/YdH8dzT/Screenshot-2024-08-20-at-11-56-29.png)
 
 Example of account summary added to the Dust datasource: 
 
@@ -49,103 +49,98 @@ No additional information provided.
 
 ## Features
 
-- Supports both username/password and OAuth 2.0 authentication methods for Salesforce
-- Fetches accounts updated in the last 24 hours
-- Retrieves detailed account information, including related contacts, opportunities, and cases
-- Formats account data into a comprehensive summary
-- Uploads the formatted data to a specified Dust datasource
-- Processes accounts in batches to handle large volumes of data efficiently
+- Multi-threaded processing for improved performance
+- Fetches accounts updated within the last 24 hours
+- Includes related Salesforce objects (Contacts, Opportunities, Cases)
+- Supports both username-password and OAuth 2.0 authentication with Salesforce
+- Upserts data to Dust datasources
 
 ## Prerequisites
 
-- Node.js (v14 or later recommended)
+- Node.js (version 14 or higher recommended)
 - npm (Node Package Manager)
-- A Salesforce account with API access
-- A Dust account with API access
-- Necessary environment variables (see Configuration section)
+- Salesforce account with API access
+- Dust account with API access
 
 ## Installation
 
-1. Clone this repository:
-   ```bash
-   git clone git@github.com:dust-tt/dust-labs.git
-   cd dust-labs/salesforce
-   ```
+1. Clone the repository:
+   \```
+   git clone https://github.com/your-username/salesforce-to-dust-import.git
+   cd salesforce-to-dust-import
+   \```
 
 2. Install dependencies:
-   ```bash
+   \```
    npm install
-   ```
+   \```
 
-## Configuration
+3. Create a `.env` file in the root directory with the following variables:
 
-Create a `.env` file in the root directory of the project with the following variables:
+   \```
+   SF_LOGIN_URL=https://login.salesforce.com
+   SF_USERNAME=your_salesforce_username
+   SF_PASSWORD=your_salesforce_password
+   SF_SECURITY_TOKEN=your_salesforce_security_token
+   SF_CLIENT_ID=your_salesforce_client_id
+   SF_CLIENT_SECRET=your_salesforce_client_secret
+   DUST_API_KEY=your_dust_api_key
+   DUST_WORKSPACE_ID=your_dust_workspace_id
+   DUST_DATASOURCE_ID_SALESFORCE=your_dust_datasource_id
+   \```
 
-```env
-SF_LOGIN_URL=your_sfdc_login_url
-DUST_API_KEY=your_dust_api_key
-DUST_WORKSPACE_ID=your_dust_workspace_id
-DUST_DATASOURCE_ID_SALESFORCE=your_dust_datasource_id
-
-# For username/password authentication:
-SF_USERNAME=your_salesforce_username
-SF_PASSWORD=your_salesforce_password
-SF_SECURITY_TOKEN=your_salesforce_security_token
-
-# For OAuth 2.0 authentication:
-SF_CLIENT_ID=your_salesforce_client_id
-SF_CLIENT_SECRET=your_salesforce_client_secret
-```
-
-Choose either the username/password or OAuth 2.0 authentication method and set the corresponding variables.
+   Note: You can use either username-password authentication (SF_USERNAME, SF_PASSWORD, SF_SECURITY_TOKEN) or OAuth 2.0 (SF_CLIENT_ID, SF_CLIENT_SECRET) for Salesforce.
 
 ## Usage
 
-Run the script with:
+To run the script:
 
-```bash
-npx tsx sfdc-accounts-to-dust.ts
-```
+\```
+npm run accounts
+\```
 
-The script will:
-1. Connect to Salesforce using the provided credentials
-2. Fetch accounts updated in the last 24 hours
-3. Retrieve detailed information for each account
-4. Format the account data into a comprehensive summary
-5. Upload the formatted data to the specified Dust datasource
+This command will execute the `sfdc-accounts-to-dust.ts` script using ts-node.
 
-## Customization
+## Configuration
 
-### Modifying the Time Range
+You can adjust the following variables in the script:
 
-To change the time range for fetching updated accounts, modify the `UPDATED_SINCE` constant in the script:
+- `UPDATED_SINCE`: Change the time range for fetching updated accounts (default is last 24 hours)
+- `THREADS_NUMBER`: Adjust the number of worker threads (default is 5)
 
-```typescript
-const UPDATED_SINCE = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-```
+## How It Works
 
-### Adjusting Batch Size
-
-The script processes accounts in batches to avoid hitting Salesforce API limits. To adjust the batch size, modify the `batchSize` variable in the `main` function:
-
-```typescript
-const batchSize = 200; // Change this value as needed
-```
-
-### Customizing Account Summary Format
-
-To modify the format of the account summary uploaded to Dust, edit the `upsertToDustDatasource` function. The `content` variable contains the template for the account summary.
+1. The script connects to Salesforce using the provided credentials.
+2. It fetches IDs of accounts that have been updated in the last 24 hours, including accounts with updated contacts, opportunities, or cases.
+3. Detailed information for these accounts is retrieved from Salesforce, including related objects.
+4. The accounts are divided into batches and processed by multiple worker threads.
+5. Each account's information is formatted into a structured text document.
+6. The formatted documents are upserted to the specified Dust datasource.
 
 ## Error Handling
 
-The script includes basic error handling and logging. Errors are logged to the console. For production use, consider implementing more robust error handling and logging mechanisms.
+The script includes error handling for various scenarios:
+- Connection errors with Salesforce or Dust API
+- Query execution errors
+- Data processing errors
 
-## Security Considerations
+Errors are logged to the console for debugging purposes.
 
-- Never commit your `.env` file or any files containing sensitive information to version control.
-- Use environment variables or a secure secrets management system for storing credentials in production environments.
-- Regularly rotate your Salesforce and Dust API keys and tokens.
-- Ensure your Salesforce Connected App has the minimum required permissions.
+## Linting
+
+To run the linter:
+
+\```
+npm run lint
+\```
+
+## Building
+
+To compile TypeScript to JavaScript:
+
+\```
+npm run build
+\```
 
 ## Contributing
 
@@ -153,4 +148,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the ISC License.
