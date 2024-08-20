@@ -65,19 +65,19 @@ No additional information provided.
 ## Installation
 
 1. Clone the repository:
-   \```
+   ```
    git clone https://github.com/your-username/salesforce-to-dust-import.git
    cd salesforce-to-dust-import
-   \```
+   ```
 
 2. Install dependencies:
-   \```
+   ```
    npm install
-   \```
+   ```
 
 3. Create a `.env` file in the root directory with the following variables:
 
-   \```
+   ```
    SF_LOGIN_URL=https://login.salesforce.com
    SF_USERNAME=your_salesforce_username
    SF_PASSWORD=your_salesforce_password
@@ -87,7 +87,7 @@ No additional information provided.
    DUST_API_KEY=your_dust_api_key
    DUST_WORKSPACE_ID=your_dust_workspace_id
    DUST_DATASOURCE_ID_SALESFORCE=your_dust_datasource_id
-   \```
+   ```
 
    Note: You can use either username-password authentication (SF_USERNAME, SF_PASSWORD, SF_SECURITY_TOKEN) or OAuth 2.0 (SF_CLIENT_ID, SF_CLIENT_SECRET) for Salesforce.
 
@@ -95,9 +95,9 @@ No additional information provided.
 
 To run the script:
 
-\```
+```
 npm run accounts
-\```
+```
 
 This command will execute the `sfdc-accounts-to-dust.ts` script using ts-node.
 
@@ -130,17 +130,17 @@ Errors are logged to the console for debugging purposes.
 
 To run the linter:
 
-\```
+```
 npm run lint
-\```
+```
 
 ## Building
 
 To compile TypeScript to JavaScript:
 
-\```
+```
 npm run build
-\```
+```
 
 ## Contributing
 
