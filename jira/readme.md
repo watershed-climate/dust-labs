@@ -60,28 +60,28 @@ This is the ticket comment
 ## Installation
 
 1. Clone this repository:
-   \```bash
+   ```bash
    git git@github.com:dust-tt/dust-labs.git
    cd zendesk
-   \```
+   ```
 
 2. Install dependencies:
-   \```bash
+   ```bash
    npm install
-   \```
+   ```
 
 ## Environment Setup
 
 Create a `.env` file in the root directory of the project with the following variables:
 
-\```
+```
 JIRA_SUBDOMAIN=your-jira-subdomain
 JIRA_EMAIL=your-jira-email
 JIRA_API_TOKEN=your-jira-api-token
 DUST_API_KEY=your-dust-api-key
 DUST_WORKSPACE_ID=your-dust-workspace-id
 DUST_DATASOURCE_ID=your-dust-datasource-id
-\```
+```
 
 Replace the placeholder values with your actual Jira and Dust credentials.
 
@@ -96,9 +96,9 @@ You can adjust the following constants in the script:
 
 Run the script using the following command:
 
-\```bash
+```bash
 npm run tickets
-\```
+```
 
 This will execute the `jira-tickets-to-dust.ts` script using `ts-node`.
 
