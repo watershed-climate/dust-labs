@@ -1,8 +1,14 @@
 import axios from 'axios';
 import * as dotenv from 'dotenv';
 import jsforce from 'jsforce';
+import { Worker, isMainThread, parentPort, workerData } from 'worker_threads';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const SF_LOGIN_URL = process.env.SF_LOGIN_URL;
 const SF_USERNAME = process.env.SF_USERNAME;
@@ -13,8 +19,8 @@ const SF_CLIENT_SECRET = process.env.SF_CLIENT_SECRET;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID_SALESFORCE;
-
 const UPDATED_SINCE = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+const THREADS_NUMBER = 5;
 
 const dustApi = axios.create({
   baseURL: 'https://dust.tt/api/v1',
@@ -82,17 +88,19 @@ interface Account {
   };
 }
 
+interface WorkerMessage {
+  type: 'log' | 'error' | 'result';
+  data: any;
+}
+
 async function connectToSalesforce(): Promise<jsforce.Connection> {
   let conn: jsforce.Connection;
-
   if (SF_USERNAME && SF_PASSWORD && SF_SECURITY_TOKEN) {
-    // Use username/password authentication
     conn = new jsforce.Connection({
       loginUrl: SF_LOGIN_URL
     });
     await conn.login(SF_USERNAME, SF_PASSWORD + SF_SECURITY_TOKEN);
   } else if (SF_CLIENT_ID && SF_CLIENT_SECRET) {
-    // Use OAuth 2.0 client credentials flow
     conn = new jsforce.Connection({
       oauth2: {
         clientId: SF_CLIENT_ID,
@@ -100,13 +108,14 @@ async function connectToSalesforce(): Promise<jsforce.Connection> {
         loginUrl: SF_LOGIN_URL
       }
     });
-    await conn.oauth2.authenticate({
-      grant_type: 'client_credentials'
+    await (conn.oauth2.authenticate as any)({
+      grant_type: 'client_credentials',
+      client_id: SF_CLIENT_ID,
+      client_secret: SF_CLIENT_SECRET
     });
   } else {
     throw new Error('Insufficient authentication information provided');
   }
-
   console.log('Connected to Salesforce');
   return conn;
 }
@@ -118,20 +127,17 @@ async function getRecentlyUpdatedAccountIds(conn: jsforce.Connection): Promise<S
     `SELECT AccountId FROM Opportunity WHERE LastModifiedDate >= ${UPDATED_SINCE}`,
     `SELECT AccountId FROM Case WHERE LastModifiedDate >= ${UPDATED_SINCE}`
   ];
-
   const accountIds = new Set<string>();
-
   for (const query of queries) {
     try {
-      const result = await conn.query(query);
+      const result = await conn.query<{ Id: string; AccountId?: string }>(query);
       result.records.forEach(record => {
-        accountIds.add(record.Id || record.AccountId);
+        accountIds.add(record.Id || record.AccountId || '');
       });
     } catch (error) {
       console.error(`Error executing query: ${query}`, error);
     }
   }
-
   return accountIds;
 }
 
@@ -148,7 +154,6 @@ async function getAccountDetails(conn: jsforce.Connection, accountIds: string[])
     FROM Account
     WHERE Id IN ('${accountIds.join("','")}')
   `;
-
   try {
     const result = await conn.query<Account>(query);
     return result.records;
@@ -167,7 +172,6 @@ async function upsertToDustDatasource(account: Account) {
   const documentId = `account-${account.Id}`;
   const content = `
 Account Summary for ${account.Name}
-
 Basic Account Details:
 Company Name: ${account.Name}
 Industry: ${account.Industry || 'N/A'}
@@ -175,18 +179,15 @@ Annual Revenue: ${account.AnnualRevenue ? `$${account.AnnualRevenue.toLocaleStri
 Number of Employees: ${account.NumberOfEmployees || 'N/A'}
 Phone: ${account.Phone || 'N/A'}
 Website: ${account.Website || 'N/A'}
-
 Locations:
 Billing Address: ${formatAddress(account.BillingStreet, account.BillingCity, account.BillingState, account.BillingPostalCode, account.BillingCountry)}
 Shipping Address: ${formatAddress(account.ShippingStreet, account.ShippingCity, account.ShippingState, account.ShippingPostalCode, account.ShippingCountry)}
-
 Key Contacts:
 ${account.Contacts?.records.map(contact => 
   `- ${contact.Name}${contact.Title ? `, ${contact.Title}` : ''}
     Email: ${contact.Email || 'N/A'}, Phone: ${contact.Phone || 'N/A'}
     Last Modified: ${contact.LastModifiedDate}`
 ).join('\n') || 'No contacts found'}
-
 Account Status:
 Type: ${account.Type || 'N/A'}
 Rating: ${account.Rating || 'N/A'}
@@ -194,7 +195,6 @@ Account Source: ${account.AccountSource || 'N/A'}
 Created Date: ${account.CreatedDate}
 Last Modified Date: ${account.LastModifiedDate}
 Last Activity Date: ${account.LastActivityDate || 'N/A'}
-
 Sales Information:
 Open Opportunities:
 ${account.Opportunities?.records.map(opp => 
@@ -202,7 +202,6 @@ ${account.Opportunities?.records.map(opp =>
     Stage: ${opp.StageName || 'N/A'}, Amount: ${opp.Amount ? `$${opp.Amount.toLocaleString()}` : 'N/A'}, Close Date: ${opp.CloseDate || 'N/A'}
     Last Modified: ${opp.LastModifiedDate}`
 ).join('\n') || 'No open opportunities'}
-
 Account Health:
 Recent Support Cases:
 ${account.Cases?.records.map(case_ => 
@@ -210,11 +209,9 @@ ${account.Cases?.records.map(case_ =>
     Subject: ${case_.Subject || 'N/A'}, Status: ${case_.Status || 'N/A'}, Created Date: ${case_.CreatedDate}
     Last Modified: ${case_.LastModifiedDate}`
 ).join('\n') || 'No recent support cases'}
-
 Additional Information:
 ${account.Description || 'No additional information provided.'}
   `.trim();
-
   try {
     await dustApi.post(`/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`, {
       source_url: `${SF_LOGIN_URL}/${account.Id}`,
@@ -226,38 +223,68 @@ ${account.Description || 'No additional information provided.'}
   }
 }
 
-async function main() {
-  let conn: jsforce.Connection | null = null;
+if (isMainThread) {
+  async function main() {
+    try {
+      const conn = await connectToSalesforce();
+      const accountIds = await getRecentlyUpdatedAccountIds(conn);
+      console.log(`Found ${accountIds.size} accounts with updates in the last 24 hours.`);
 
-  try {
-    conn = await connectToSalesforce();
-
-    const accountIds = await getRecentlyUpdatedAccountIds(conn);
-    console.log(`Found ${accountIds.size} accounts with updates in the last 24 hours.`);
-
-    // Process accounts in batches of 200 to avoid hitting SOQL query length limits
-    const batchSize = 200;
-    const accountIdArray = Array.from(accountIds);
-    for (let i = 0; i < accountIdArray.length; i += batchSize) {
-      const batchIds = accountIdArray.slice(i, i + batchSize);
-      const accounts = await getAccountDetails(conn, batchIds);
-      
-      for (const account of accounts) {
-        await upsertToDustDatasource(account);
-      }
-
-      console.log(`Processed ${i + accounts.length} out of ${accountIds.size} accounts`);
-    }
-
-    console.log('Finished processing accounts');
-  } catch (error) {
-    console.error('An error occurred:', error);
-  } finally {
-    if (conn) {
+      const accounts = await getAccountDetails(conn, Array.from(accountIds));
       await conn.logout();
-      console.log('Logged out from Salesforce');
+
+      const batchSize = Math.ceil(accounts.length / THREADS_NUMBER);
+      const batches = Array.from({ length: THREADS_NUMBER }, (_, i) =>
+        accounts.slice(i * batchSize, (i + 1) * batchSize)
+      );
+
+      const workers = batches.map((batch, index) =>
+        new Worker(new URL(import.meta.url), { workerData: { batch, index } })
+      );
+
+      let processedAccounts = 0;
+      await Promise.all(workers.map(worker => new Promise<void>((resolve, reject) => {
+        worker.on('message', (message: WorkerMessage) => {
+          if (message.type === 'log') {
+            console.log(`Worker ${message.data.index}:`, message.data.message);
+          } else if (message.type === 'error') {
+            console.error(`Worker ${message.data.index} error:`, message.data.error);
+          } else if (message.type === 'result') {
+            processedAccounts += message.data;
+          }
+        });
+        worker.on('error', reject);
+        worker.on('exit', code => {
+          if (code !== 0) {
+            reject(new Error(`Worker stopped with exit code ${code}`));
+          } else {
+            resolve();
+          }
+        });
+      })));
+
+      console.log(`Processed ${processedAccounts} out of ${accounts.length} accounts`);
+      console.log('Finished processing accounts');
+    } catch (error) {
+      console.error('An error occurred:', error);
     }
   }
-}
 
-main();
+  main();
+} else {
+  (async () => {
+    try {
+      const { batch, index } = workerData as { batch: Account[], index: number };
+      parentPort?.postMessage({ type: 'log', data: { index, message: `Starting to process ${batch.length} accounts` } });
+      let processedCount = 0;
+      for (const account of batch) {
+        await upsertToDustDatasource(account);
+        processedCount++;
+      }
+      parentPort?.postMessage({ type: 'result', data: processedCount });
+      parentPort?.postMessage({ type: 'log', data: { index, message: `Finished processing ${processedCount} accounts` } });
+    } catch (error) {
+      parentPort?.postMessage({ type: 'error', data: { index: workerData.index, error } });
+    }
+  })();
+}
