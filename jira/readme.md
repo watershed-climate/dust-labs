@@ -1,4 +1,4 @@
-# Jira Tickets to Dust Datasource Import Script
+# Jira Issues to Dust Datasource Import Script
 
 This script synchronizes Jira issues with a Dust datasource. It fetches recently updated Jira issues and upserts them into a specified Dust datasource, allowing for easy integration of Jira data into Dust-powered applications.
 
@@ -13,7 +13,7 @@ This script synchronizes Jira issues with a Dust datasource. It fetches recently
 7. [Troubleshooting](#troubleshooting)
 
 ## Example
-![Example usage of the script](https://i.ibb.co/XYmhV1j/Screenshot-2024-08-20-at-16-27-12.png)
+![Example usage of the script](https://i.ibb.co/t8dtM0P/Screenshot-2024-08-20-at-16-40-32.png)
 
 Example of issues summary added to the Dust datasource: 
 
@@ -54,7 +54,7 @@ Attachments:
 Comments:
 
 [2024-08-20T16:26:36.076+0200] Author: Alban Dumouilla (alban@dust.tt)
-This is the ticket comment
+This is the first comment of the issue
 ```
 
 ## Installation
@@ -97,10 +97,10 @@ You can adjust the following constants in the script:
 Run the script using the following command:
 
 ```bash
-npm run tickets
+npm run issues
 ```
 
-This will execute the `jira-tickets-to-dust.ts` script using `ts-node`.
+This will execute the `jira-issues-to-dust.ts` script using `ts-node`.
 
 ## Script Details
 
