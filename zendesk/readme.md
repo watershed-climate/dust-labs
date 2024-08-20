@@ -1,4 +1,4 @@
-# Import Zendesk to Dust
+# Import Zendesk tickets to Dust
 
 This script syncs ticket data from Zendesk to a Dust datasource. It retrieves tickets updated in the last 24 hours, along with their comments and user information, and upserts this data to a specified Dust datasource.
 

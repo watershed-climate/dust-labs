@@ -3,7 +3,7 @@
 This script synchronizes account data from Salesforce to Dust, updating a specified Dust datasource with the latest account information. It's designed to run periodically, fetching recently updated accounts and their related data from Salesforce, then formatting and uploading this information to Dust.
 
 ## Usage example
-![Example usage of the script](https://i.ibb.co/c2yZGgY/Screenshot-2024-08-19-at-17-32-01.png)
+![Example usage of the script](https://i.ibb.co/PCHQcqv/Screenshot-2024-08-20-at-09-15-30.png)
 
 Example of account summary added to the Dust datasource: 
 
@@ -104,7 +104,7 @@ Choose either the username/password or OAuth 2.0 authentication method and set t
 Run the script with:
 
 ```bash
-npx tsx account-summaries-to-dust.ts
+npx tsx sfdc-accounts-to-dust.ts
 ```
 
 The script will:
