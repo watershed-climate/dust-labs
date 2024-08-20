@@ -3,7 +3,7 @@
 This script is a multi-threaded Node.js application designed to import Salesforce account data into Dust datasources. It fetches recently updated accounts from Salesforce, including related contacts, opportunities, and cases, and then uploads this information to a specified Dust datasource.
 
 ## Usage example
-![Example usage of the script](https://i.ibb.co/YdH8dzT/Screenshot-2024-08-20-at-11-56-29.png)
+![Example usage of the script](https://i.ibb.co/rtfTyjH/Screenshot-2024-08-20-at-12-00-24.png)
 
 Example of account summary added to the Dust datasource: 
 
