@@ -148,9 +148,9 @@ async function getAccountDetails(conn: jsforce.Connection, accountIds: string[])
            ShippingStreet, ShippingCity, ShippingState, ShippingPostalCode, ShippingCountry,
            Phone, Website, Description, Type, Rating, AccountSource, OwnerId,
            CreatedDate, LastModifiedDate, LastActivityDate,
-           (SELECT Id, Name, Email, Phone, Title, LastModifiedDate FROM Contacts WHERE LastModifiedDate >= ${UPDATED_SINCE}),
-           (SELECT Id, Name, StageName, Amount, CloseDate, LastModifiedDate FROM Opportunities WHERE LastModifiedDate >= ${UPDATED_SINCE}),
-           (SELECT Id, CaseNumber, Subject, Status, CreatedDate, LastModifiedDate FROM Cases WHERE LastModifiedDate >= ${UPDATED_SINCE})
+           (SELECT Id, Name, Email, Phone, Title, LastModifiedDate FROM Contacts),
+           (SELECT Id, Name, StageName, Amount, CloseDate, LastModifiedDate FROM Opportunities),
+           (SELECT Id, CaseNumber, Subject, Status, CreatedDate, LastModifiedDate FROM Cases)
     FROM Account
     WHERE Id IN ('${accountIds.join("','")}')
   `;
