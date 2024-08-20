@@ -1,89 +1,102 @@
-# Import Zendesk tickets to Dust
+# Zendesk tickets to Dust Data Import
 
-This script syncs ticket data from Zendesk to a Dust datasource. It retrieves tickets updated in the last 24 hours, along with their comments and user information, and upserts this data to a specified Dust datasource.
+This script imports Zendesk tickets updated in the last 24 hours into a Dust datasource. It fetches ticket details, comments, user information, and custom statuses from Zendesk, then formats and uploads this data to a specified Dust datasource.
 
-## Features
+## Installation
 
-- Fetches tickets updated in the last 24 hours from Zendesk
-- Retrieves detailed ticket information, comments, and user data
-- Handles Zendesk API rate limiting
-- Upserts formatted ticket data to a Dust datasource
+1. Ensure you have Node.js (version 14 or higher) and npm installed on your system.
 
-## Prerequisites
-
-- Node.js (v14 or later recommended)
-- A Zendesk account with API access
-- A Dust account with API access
-- A way to run this script on your side every 24h (cron, etc.)
-
-## Setup
-
-1. Clone this repository:
+2. Clone this repository:
    ```
-   git clone https://github.com/your-username/zendesk-to-dust-sync.git
-   cd zendesk-to-dust-sync
+   git git@github.com:dust-tt/dust-labs.git
+   cd zendesk
    ```
 
-2. Create a `.env` file in the project root with the following variables:
+3. Install the dependencies:
    ```
-   ZENDESK_SUBDOMAIN=your-zendesk-subdomain
-   ZENDESK_EMAIL=your-zendesk-email
-   ZENDESK_API_TOKEN=your-zendesk-api-token
-   DUST_API_KEY=your-dust-api-key
-   DUST_WORKSPACE_ID=your-dust-workspace-id
-   DUST_DATASOURCE_ID=your-dust-datasource-id
+   npm install
    ```
 
-   Replace the values with your actual Zendesk and Dust credentials.
+## Environment Setup
+
+Create a `.env` file in the root directory of the project with the following variables:
+
+```
+ZENDESK_SUBDOMAIN=your_zendesk_subdomain
+ZENDESK_EMAIL=your_zendesk_email
+ZENDESK_API_TOKEN=your_zendesk_api_token
+DUST_API_KEY=your_dust_api_key
+DUST_WORKSPACE_ID=your_dust_workspace_id
+DUST_DATASOURCE_ID=your_dust_datasource_id
+```
+
+Replace the placeholder values with your actual Zendesk and Dust credentials.
 
 ## Usage
 
-Run the script using:
+To run the script:
 
 ```
-npx tsx zendesk.ts
+npm run tickets
 ```
 
-The script will:
-1. Fetch tickets updated in the last 24 hours from Zendesk
-2. Retrieve detailed information for each ticket, including comments and user data
-3. Format the data
-4. Upsert the formatted data to your specified Dust datasource
+This command will execute the `zendesk-tickets-to-dust.ts` script using `ts-node`.
 
-## Customization
+## How It Works
 
-You can adjust the `TICKETS_UPDATED_SINCE` constant in the script to change the time range for fetching updated tickets. The default is set to 24 hours ago.
+1. The script fetches all ticket IDs that have been updated in the last 24 hours using Zendesk's incremental export API.
 
-## Regular Execution
+2. It then retrieves detailed information for these tickets in batches of 100.
 
-It's recommended to run this script regularly to keep your Dust datasource up-to-date with your Zendesk data. You can set up a cron job or use a task scheduler to run the script at your preferred interval.
+3. For each ticket, it fetches:
+   - Ticket details
+   - All comments on the ticket
+   - User information for the ticket assignee and comment authors
+   - Custom status information (if applicable)
 
-For example, to run the script daily, you could set up a cron job like this:
+4. The collected data is formatted into a single text document.
 
-```
-0 1 * * * cd /path/to/zendesk-to-dust-sync && /usr/bin/npx tsx zendesk.ts >> /path/to/logfile.log 2>&1
-```
+5. The formatted data is then upserted to the specified Dust datasource, using the ticket ID as the document ID.
 
-This would run the script every day at 1:00 AM.
+6. The process is parallelized using `p-limit` to handle multiple tickets simultaneously, respecting Zendesk's rate limits.
 
-Remember to adjust the `TICKETS_UPDATED_SINCE` constant in the script to match your execution interval. For example, if you're running the script daily, you might want to set it to fetch tickets updated in the last 25 hours to ensure no tickets are missed due to potential delays or timezone differences.
+## Configuration
+
+- `THREADS_NUMBER`: Set to 5 by default. This determines the number of parallel operations.
+- `TICKETS_UPDATED_SINCE`: Set to fetch tickets updated in the last 24 hours. Modify this value in the script if you need a different time range.
 
 ## Error Handling
 
-The script includes basic error handling and logging. Check the console output for any errors or warnings during execution.
+The script includes error handling for rate limiting. If a rate limit is exceeded, it will wait before retrying the request.
 
-## Rate Limiting
+## Building
 
-The script respects Zendesk's rate limits and will pause if the rate limit is exceeded. If you encounter frequent rate limit errors, consider increasing the interval between script executions.
+To compile the TypeScript code to JavaScript:
 
-## Contributing
+```
+npm run build
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+This will create a `dist` directory with the compiled JavaScript files.
+
+## Dependencies
+
+- axios: For making HTTP requests to Zendesk and Dust APIs
+- dotenv: For loading environment variables
+- p-limit: For limiting the number of concurrent operations
+
+## Dev Dependencies
+
+- @types/node: TypeScript definitions for Node.js
+- ts-node: For running TypeScript files directly
+- typescript: The TypeScript compiler
+
+## Notes
+
+- Ensure you have the necessary permissions in both Zendesk and Dust to perform these operations.
+- Be mindful of your Zendesk API usage limits when running this script frequently or with large datasets.
+- The script currently fetches tickets from the last 24 hours. Modify the `TICKETS_UPDATED_SINCE` constant if you need a different time range.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Dust documentation
-
-You can find more information about Dust in the [Dust documentation](https://docs.dust.tt).
+This project is licensed under the ISC License.

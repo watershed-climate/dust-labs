@@ -1,5 +1,6 @@
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import * as dotenv from 'dotenv';
+import pLimit from 'p-limit';
 
 dotenv.config();
 
@@ -9,6 +10,10 @@ const ZENDESK_API_TOKEN = process.env.ZENDESK_API_TOKEN;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
+
+// Number of parallel threads
+const THREADS_NUMBER = 5;
+
 // 24 hours ago in seconds
 const TICKETS_UPDATED_SINCE = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
 
@@ -75,6 +80,14 @@ interface User {
   email: string;
 }
 
+interface ZendeskIncrementalResponse {
+  tickets: Ticket[];
+  next_page?: string;
+  end_time: number;
+  after_cursor?: string;
+  before_cursor?: string;
+}
+
 async function getTicketsUpdatedLast24Hours(): Promise<number[]> {
   let allTicketIds: number[] = [];
   let nextPage: string | null = null;
@@ -83,7 +96,7 @@ async function getTicketsUpdatedLast24Hours(): Promise<number[]> {
 
   do {
     try {
-      const response = await zendeskApi.get('/incremental/tickets.json', {
+      const response: AxiosResponse<ZendeskIncrementalResponse> = await zendeskApi.get('/incremental/tickets.json', {
         params: {
           start_time: TICKETS_UPDATED_SINCE,
           include: 'comment_count',
@@ -94,7 +107,7 @@ async function getTicketsUpdatedLast24Hours(): Promise<number[]> {
       const newTickets = response.data.tickets.map((ticket: Ticket) => ticket.id);
       allTicketIds = allTicketIds.concat(newTickets);
       totalCount += newTickets.length;
-      nextPage = response.data.after_cursor;
+      nextPage = response.data.after_cursor || null;
 
       console.log(`Page ${currentPage}: Retrieved ${newTickets.length} tickets`);
       console.log(`Total count: ${totalCount}, Current total: ${allTicketIds.length}, Next cursor: ${nextPage || 'None'}`);
@@ -118,10 +131,9 @@ async function getTicketsUpdatedLast24Hours(): Promise<number[]> {
   return allTicketIds;
 }
 
-
 async function getTicketsBatch(ids: number[]): Promise<Ticket[]> {
   try {
-    const response = await zendeskApi.get('/tickets/show_many.json', {
+    const response: AxiosResponse<{ tickets: Ticket[] }> = await zendeskApi.get('/tickets/show_many.json', {
       params: {
         ids: ids.join(',')
       }
@@ -138,7 +150,7 @@ async function getTicketsBatch(ids: number[]): Promise<Ticket[]> {
 
 async function getTicketComments(ticketId: number): Promise<Comment[]> {
   try {
-    const response = await zendeskApi.get(`/tickets/${ticketId}/comments.json`);
+    const response: AxiosResponse<{ comments: Comment[] }> = await zendeskApi.get(`/tickets/${ticketId}/comments.json`);
     return response.data.comments;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 429) {
@@ -151,7 +163,7 @@ async function getTicketComments(ticketId: number): Promise<Comment[]> {
 
 async function getUser(userId: number): Promise<User | null> {
   try {
-    const response = await zendeskApi.get(`/users/${userId}.json`);
+    const response: AxiosResponse<{ user: User }> = await zendeskApi.get(`/users/${userId}.json`);
     return response.data.user;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 429) {
@@ -164,7 +176,7 @@ async function getUser(userId: number): Promise<User | null> {
 
 async function getCustomStatus(statusId: number): Promise<string> {
   try {
-    const response = await zendeskApi.get(`/custom_statuses/${statusId}.json`);
+    const response: AxiosResponse<{ custom_status: { agent_label: string } }> = await zendeskApi.get(`/custom_statuses/${statusId}.json`);
     return response.data.custom_status.agent_label;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 429) {
@@ -185,7 +197,6 @@ Created At: ${ticket.created_at}
 Updated At: ${ticket.updated_at}
 Status: ${customStatus || ticket.status}
 Assignee: ${assignee ? `${assignee.name} (${assignee.email})` : 'Unassigned'}
-
 Comments:
 ${comments.map(comment => {
     const author = users.get(comment.author_id);
@@ -211,35 +222,41 @@ async function main() {
     const recentTicketIds = await getTicketsUpdatedLast24Hours();
     console.log(`Found ${recentTicketIds.length} tickets updated in the last 24 hours.`);
 
+    const limit = pLimit(THREADS_NUMBER);
+    const tasks: Promise<void>[] = [];
+
     for (let i = 0; i < recentTicketIds.length; i += 100) {
       const batchIds = recentTicketIds.slice(i, i + 100);
-      const tickets = await getTicketsBatch(batchIds);
-      
-      for (const ticket of tickets) {
-        const comments = await getTicketComments(ticket.id);
+      tasks.push(limit(async () => {
+        const tickets = await getTicketsBatch(batchIds);
         
-        const uniqueAuthorIds = new Set(comments.map(comment => comment.author_id));
-        if (ticket.assignee_id !== null) {
-          uniqueAuthorIds.add(ticket.assignee_id);
-        }
-        const users = new Map<number, User>();
-        for (const authorId of uniqueAuthorIds) {
-          const user = await getUser(authorId);
-          if (user) {
-            users.set(authorId, user);
+        for (const ticket of tickets) {
+          const comments = await getTicketComments(ticket.id);
+          
+          const uniqueAuthorIds = new Set(comments.map(comment => comment.author_id));
+          if (ticket.assignee_id !== null) {
+            uniqueAuthorIds.add(ticket.assignee_id);
           }
+          const users = new Map<number, User>();
+          for (const authorId of uniqueAuthorIds) {
+            const user = await getUser(authorId);
+            if (user) {
+              users.set(authorId, user);
+            }
+          }
+          const assignee = ticket.assignee_id !== null ? users.get(ticket.assignee_id) || null : null;
+          
+          let customStatus: string | null = null;
+          if (ticket.custom_status_id !== undefined && ticket.custom_status_id !== null) {
+            customStatus = await getCustomStatus(ticket.custom_status_id);
+          }
+          await upsertToDustDatasource(ticket, comments, users, assignee, customStatus);
         }
-
-        const assignee = ticket.assignee_id !== null ? users.get(ticket.assignee_id) || null : null;
-        
-        let customStatus: string | null = null;
-        if (ticket.custom_status_id !== undefined && ticket.custom_status_id !== null) {
-          customStatus = await getCustomStatus(ticket.custom_status_id);
-        }
-
-        await upsertToDustDatasource(ticket, comments, users, assignee, customStatus);
-      }
+      }));
     }
+
+    await Promise.all(tasks);
+    console.log('All tickets processed successfully.');
   } catch (error) {
     console.error('An error occurred:', error);
   }
