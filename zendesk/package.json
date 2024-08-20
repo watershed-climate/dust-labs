@@ -1,0 +1,23 @@
+{
+  "name": "zendesk-to-dust",
+  "version": "1.0.0",
+  "description": "Script to import Zendesk tickets to Dust datasources",
+  "main": "index.ts",
+  "scripts": {
+    "tickets": "ts-node zendesk-tickets-to-dust.ts",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.4.0",
+    "dotenv": "^16.0.3",
+    "p-limit": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.16.3",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  }
+}
