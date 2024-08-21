@@ -26,7 +26,9 @@ const jiraApi = axios.create({
   },
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  maxContentLength: Infinity,
+  maxBodyLength: Infinity
 });
 
 const dustApi = axios.create({
@@ -34,7 +36,9 @@ const dustApi = axios.create({
   headers: {
     'Authorization': `Bearer ${DUST_API_KEY}`,
     'Content-Type': 'application/json'
-  }
+  },
+  maxContentLength: Infinity,
+  maxBodyLength: Infinity
 });
 
 interface JiraIssue {

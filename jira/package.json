@@ -1,10 +1,10 @@
 {
   "name": "zendesk-to-dust",
   "version": "1.0.0",
-  "description": "Script to import Zendesk tickets to Dust datasources",
+  "description": "Script to import Jira issues to Dust datasources",
   "main": "index.ts",
   "scripts": {
-    "tickets": "ts-node jira-tickets-to-dust.ts",
+    "issues": "ts-node jira-issues-to-dust.ts",
     "build": "tsc"
   },
   "keywords": [],
