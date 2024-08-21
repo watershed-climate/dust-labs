@@ -31,7 +31,9 @@ const dustApi = axios.create({
   headers: {
     'Authorization': `Bearer ${DUST_API_KEY}`,
     'Content-Type': 'application/json'
-  }
+  },
+  maxContentLength: Infinity,
+  maxBodyLength: Infinity
 });
 
 interface Account {
