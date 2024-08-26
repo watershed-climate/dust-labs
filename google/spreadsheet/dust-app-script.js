@@ -116,7 +116,7 @@ function createConversationAndGetContent(assistantId, prompt, input) {
       mentions: [{ configurationId: assistantId }],
       context: {
         username: "GoogleSheetsUser",
-        timezone: "UTC",
+        timezone: Session.getScriptTimeZone(),
         fullName: "Google Sheets User",
         email: "user@example.com",
         profilePictureUrl: "",
