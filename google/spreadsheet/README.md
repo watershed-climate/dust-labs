@@ -1,6 +1,6 @@
 # Dust Assistant for Google Spreadsheets
 
-> **Beta Disclaimer**: This integration is currently in beta. Features and functionality are subject to change as we continue to improve the product based on user feedback and testing.
+> **Beta Disclaimer**: This integration is currently in beta and only accessible to Enterprise customers. Features and functionality are subject to change as we continue to improve the product based on user feedback and testing.
 
 ## 1. Introduction
 
@@ -78,7 +78,5 @@ Please be aware of the following limitations when using the Dust Assistant in Go
 1. **Response Time**: The assistant must respond within 30 seconds, or the spreadsheet will return an error. Ensure your queries are concise and specific to avoid timeouts.
 
 2. **Daily Message Limit**: Each interaction with a Dust Assistant counts towards the daily message limit of 100 messages per user per day. For example, if your workspace has 100 users, your total daily capacity is 10,000 messages (100 users \* 100 messages).
-
-   Example: If your workspace has 100 users, you have a total capacity of 100 \* 100 = 10,000 messages per day.
 
 By keeping these limitations in mind, you can optimize your use of the Dust Assistant in Google Spreadsheets and ensure a smooth experience for all users in your workspace.
