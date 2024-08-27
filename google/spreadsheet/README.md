@@ -10,7 +10,16 @@ Note: The App Script needs to be manually added to each spreadsheet where you wa
 
 ## 2. How to Add the App Script to Your Google Spreadsheet
 
-[Instructions for adding the App Script will be provided in a separate document.]
+To add the Dust Assistant App Script to your Google Spreadsheet, follow these steps:
+
+1. Open your Google Spreadsheet.
+2. Click on the "Extensions" menu at the top of the page.
+3. Select "Apps Script" from the dropdown menu.
+4. In the Apps Script editor, click on "Add a file" (usually a plus icon).
+5. Choose "Script" from the options.
+6. Name the file "dust" (or any name you prefer).
+7. Replace all the content in the placeholder script with the provided script from the `dust-app-script.js` file.
+8. Save the script.
 
 ## 3. Configuring the App Script
 
