@@ -68,7 +68,7 @@ Please be aware of the following limitations when using the Dust Assistant in Go
 
 1. **Response Time**: The assistant must respond within 30 seconds, or the spreadsheet will return an error. Ensure your queries are concise and specific to avoid timeouts.
 
-2. **Daily Message Limit**: Each interaction with the Dust Assistant counts towards the daily message limit of 100 messages per user per day. For example, if your workspace has 100 users, your total daily capacity is 10,000 messages (100 users \* 100 messages).
+2. **Daily Message Limit**: Each interaction with a Dust Assistant counts towards the daily message limit of 100 messages per user per day. For example, if your workspace has 100 users, your total daily capacity is 10,000 messages (100 users \* 100 messages).
 
    Example: If your workspace has 100 users, you have a total capacity of 100 \* 100 = 10,000 messages per day.
 
