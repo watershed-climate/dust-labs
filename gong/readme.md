@@ -1,4 +1,4 @@
-# Gong Transcript To Dust Datasource Exporter
+# Gong Transcripts To Dust Datasource Exporter
 
 ## Example
 ![Example usage of the script](https://i.ibb.co/2s8yVC6/Screenshot-2024-08-30-at-11-59-13.png)
