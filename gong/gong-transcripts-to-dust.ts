@@ -58,12 +58,33 @@ interface GongTranscript {
   callId: string;
   transcript: {
     speakerId: string;
-    topic: string;
     sentences: {
-      start: number;
-      end: number;
       text: string;
     }[];
+  }[];
+}
+
+interface GongExtensiveCallData {
+  metaData?: {
+    id: string;
+    title?: string;
+    scheduled?: string;
+    started?: string;
+    duration?: number;
+    primaryUserId?: string;
+    direction?: string;
+    system?: string;
+    scope?: string;
+    media?: string;
+    language?: string;
+  };
+  parties?: {
+    id: string;
+    emailAddress?: string;
+    name?: string;
+    title?: string;
+    speakerId?: string;
+    affiliation?: string;
   }[];
 }
 
@@ -97,21 +118,63 @@ async function getGongTranscripts(): Promise<GongTranscript[]> {
   return allTranscripts;
 }
 
-async function upsertToDustDatasource(transcript: GongTranscript) {
+async function getExtensiveCallData(callId: string): Promise<GongExtensiveCallData | null> {
+  try {
+    const response: AxiosResponse<{ calls: GongExtensiveCallData[] }> = await gongApi.post('/v2/calls/extensive', {
+      filter: { callIds: [callId] },
+      contentSelector: {
+        exposedFields: {
+          metaData: true,
+          parties: true
+        }
+      }
+    });
+    return response.data.calls[0] || null;
+  } catch (error) {
+    console.error(`Error fetching extensive data for call ${callId}:`, error);
+    return null;
+  }
+}
+
+async function upsertToDustDatasource(transcript: GongTranscript, extensiveData: GongExtensiveCallData | null) {
   const documentId = `gong-transcript-${transcript.callId}`;
-  const content = `
-Call ID: ${transcript.callId}
-Transcript:
-${transcript.transcript.map(monologue => `
-Speaker ID: ${monologue.speakerId}
-Topic: ${monologue.topic}
-${monologue.sentences.map(sentence => `[${sentence.start}-${sentence.end}] ${sentence.text}`).join('\n')}
-`).join('\n')}
-  `.trim();
+  const speakerMap = new Map(extensiveData?.parties?.map(party => [party.speakerId, party.name]) || []);
+
+  let content = `Call ID: ${transcript.callId}\n`;
+
+  if (extensiveData?.metaData) {
+    const { title, scheduled, started, duration, direction, system, scope, media, language } = extensiveData.metaData;
+    if (title) content += `Title: ${title}\n`;
+    if (scheduled) content += `Scheduled: ${scheduled}\n`;
+    if (started) content += `Started: ${started}\n`;
+    if (duration) content += `Duration: ${duration} seconds\n`;
+    if (direction) content += `Direction: ${direction}\n`;
+    if (system) content += `System: ${system}\n`;
+    if (scope) content += `Scope: ${scope}\n`;
+    if (media) content += `Media: ${media}\n`;
+    if (language) content += `Language: ${language}\n`;
+  }
+
+  if (extensiveData?.parties && extensiveData.parties.length > 0) {
+    content += '\nParticipants:\n';
+    extensiveData.parties.forEach(party => {
+      let participantInfo = `- ${party.name || 'Unknown'}`;
+      if (party.emailAddress) participantInfo += ` (${party.emailAddress})`;
+      if (party.title) participantInfo += `, Title: ${party.title}`;
+      if (party.affiliation) participantInfo += `, Affiliation: ${party.affiliation}`;
+      content += participantInfo + '\n';
+    });
+  }
+
+  content += '\nTranscript:\n';
+  transcript.transcript.forEach(monologue => {
+    content += `\n${speakerMap.get(monologue.speakerId) || monologue.speakerId}: `;
+    content += monologue.sentences.map(sentence => sentence.text).join(' ') + '\n';
+  });
 
   try {
     await dustApi.post(`/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`, {
-      text: content
+      text: content.trim()
     });
     console.log(`Upserted transcript ${transcript.callId} to Dust datasource`);
   } catch (error) {
@@ -129,7 +192,8 @@ async function main() {
 
     for (const transcript of transcripts) {
       tasks.push(limit(async () => {
-        await upsertToDustDatasource(transcript);
+        const extensiveData = await getExtensiveCallData(transcript.callId);
+        await upsertToDustDatasource(transcript, extensiveData);
       }));
     }
 
