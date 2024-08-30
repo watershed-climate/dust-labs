@@ -65,12 +65,12 @@ This script imports Gong transcripts to Dust datasources. It retrieves detailed 
 
 1. Clone this repository:
    ```
-   git clone https://github.com/your-username/gong-transcript-exporter.git
+   git clone git@github.com:dust-tt/dust-labs.git
    ```
 
 2. Navigate to the project directory:
    ```
-   cd gong-transcript-exporter
+   cd gong
    ```
 
 3. Install the required dependencies:
