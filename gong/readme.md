@@ -64,32 +64,32 @@ This script imports Gong transcripts to Dust datasources. It retrieves detailed 
 ## Installation
 
 1. Clone this repository:
-   \```
+   ```
    git clone https://github.com/your-username/gong-transcript-exporter.git
-   \```
+   ```
 
 2. Navigate to the project directory:
-   \```
+   ```
    cd gong-transcript-exporter
-   \```
+   ```
 
 3. Install the required dependencies:
-   \```
+   ```
    npm install
-   \```
+   ```
 
 ## Configuration
 
 Create a `.env` file in the root directory of the project with the following contents:
 
-\```
+```
 GONG_BASE_URL=your_gong_base_url
 GONG_ACCESS_KEY=your_gong_access_key
 GONG_ACCESS_KEY_SECRET=your_gong_access_key_secret
 DUST_API_KEY=your_dust_api_key
 DUST_WORKSPACE_ID=your_dust_workspace_id
 DUST_DATASOURCE_ID=your_dust_datasource_id
-\```
+```
 
 Replace the placeholder values with your actual Gong and Dust credentials.
 
@@ -97,9 +97,9 @@ Replace the placeholder values with your actual Gong and Dust credentials.
 
 To run the script, use the following command:
 
-\```
+```
 npm run transcripts
-\```
+```
 
 This command executes the `gong-transcripts-to-dust.ts` file using `ts-node`.
 
