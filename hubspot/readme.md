@@ -4,7 +4,7 @@ This script is designed to import data from HubSpot to Dust datasources. It fetc
 
 ## Usage example
 
-![Example usage of the script](https://i.ibb.co/dcdW29L/Screenshot-2024-09-04-at-15-55-09.png)
+![Example usage of the script](https://i.ibb.co/FKyr9KB/Screenshot-2024-09-04-at-16-50-54.png)
 
 Example of account summary added to the Dust datasource: 
 
