@@ -2,6 +2,29 @@
 
 This script is designed to import data from HubSpot to Dust datasources. It fetches recently updated companies from HubSpot, along with their associated contacts and deals, and upserts this information into a specified Dust datasource.
 
+## Usage example
+![Example usage of the script](https://i.ibb.co/rtfTyjH/Screenshot-2024-08-20-at-12-00-24.png)
+
+Example of account summary added to the Dust datasource: 
+
+```
+Company Summary for Evil Corp
+
+Basic Company Details:
+Company Name: Evil Corp
+
+Key Contacts:
+- Email: dr.evil@evilcorp.com
+- Dr Maboul, Title: Head of AI, Email: dr.maboul@evilcorp.com
+- Dr Zeuss, Email: dr.zeuss@evilcorp.com, Phone: +33 7 66 66 66 66
+
+Deals:
+- Evil Corp, Stage: decisionmakerboughtin, Amount: 42000, Close Date: 2024-07-31T10:21:55.017Z
+
+Notes:
+- 2024-09-04: Adding some notes to be more Evil.
+```
+
 ## Features
 
 - Multi-threaded processing for improved performance

@@ -84,10 +84,41 @@ interface Deal {
   archived: boolean;
 }
 
+interface Ticket {
+  id: string;
+  properties: {
+    [key: string]: string;
+  };
+}
+
+interface Order {
+  id: string;
+  properties: {
+    [key: string]: string;
+  };
+}
+
+interface Note {
+  id: string;
+  properties: {
+    [key: string]: string;
+  };
+}
+
 interface WorkerMessage {
   type: 'log' | 'error' | 'result';
   data: any;
 }
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toISOString().split('T')[0];
+}
+
+function stripHtmlTags(html: string): string {
+  return html.replace(/<[^>]*>/g, '').trim();
+}
+
 
 async function getRecentlyUpdatedCompanyIds(): Promise<string[]> {
   try {
@@ -178,7 +209,70 @@ async function getAssociatedDeals(companyId: string): Promise<Deal[]> {
   }
 }
 
-async function upsertToDustDatasource(company: Company, contacts: Contact[], deals: Deal[]) {
+async function getAssociatedTickets(companyId: string): Promise<Ticket[]> {
+  try {
+    const response = await hubspotLimiter.schedule(() => hubspotApi.get(`/crm/v3/objects/companies/${companyId}/associations/tickets`, {
+      params: { limit: 100 }
+    }));
+    const ticketIds = response.data.results.map((result: any) => result.id);
+
+    if (ticketIds.length === 0) return [];
+
+    const ticketsResponse = await hubspotLimiter.schedule(() => hubspotApi.post('/crm/v3/objects/tickets/batch/read', {
+      properties: ['subject', 'content', 'hs_pipeline_stage', 'hs_ticket_priority', 'createdate'],
+      inputs: ticketIds.map(id => ({ id }))
+    }));
+
+    return ticketsResponse.data.results;
+  } catch (error) {
+    console.error(`Error fetching associated tickets for company ${companyId}:`, error);
+    return [];
+  }
+}
+
+async function getAssociatedOrders(companyId: string): Promise<Order[]> {
+  try {
+    const response = await hubspotLimiter.schedule(() => hubspotApi.get(`/crm/v3/objects/companies/${companyId}/associations/line_items`, {
+      params: { limit: 100 }
+    }));
+    const orderIds = response.data.results.map((result: any) => result.id);
+
+    if (orderIds.length === 0) return [];
+
+    const ordersResponse = await hubspotLimiter.schedule(() => hubspotApi.post('/crm/v3/objects/line_items/batch/read', {
+      properties: ['name', 'quantity', 'price', 'amount', 'createdate'],
+      inputs: orderIds.map(id => ({ id }))
+    }));
+
+    return ordersResponse.data.results;
+  } catch (error) {
+    console.error(`Error fetching associated orders for company ${companyId}:`, error);
+    return [];
+  }
+}
+
+async function getNotes(companyId: string): Promise<Note[]> {
+  try {
+    const response = await hubspotLimiter.schedule(() => hubspotApi.get(`/crm/v3/objects/companies/${companyId}/associations/notes`, {
+      params: { limit: 100 }
+    }));
+    const noteIds = response.data.results.map((result: any) => result.id);
+
+    if (noteIds.length === 0) return [];
+
+    const notesResponse = await hubspotLimiter.schedule(() => hubspotApi.post('/crm/v3/objects/notes/batch/read', {
+      properties: ['hs_note_body', 'hs_createdate'],
+      inputs: noteIds.map(id => ({ id }))
+    }));
+
+    return notesResponse.data.results;
+  } catch (error) {
+    console.error(`Error fetching notes for company ${companyId}:`, error);
+    return [];
+  }
+}
+
+async function upsertToDustDatasource(company: Company, contacts: Contact[], deals: Deal[], tickets: Ticket[], orders: Order[], notes: Note[]) {
   const documentId = `company-${company.id}`;
   const props = company.properties || {};
 
@@ -232,6 +326,29 @@ async function upsertToDustDatasource(company: Company, contacts: Contact[], dea
     .filter(Boolean)
     .join('\n');
 
+  const ticketsInfo = tickets
+    .map(ticket => {
+      const tProps = ticket.properties || {};
+      return `- ${tProps.subject || 'Untitled'}: ${tProps.hs_pipeline_stage || 'Unknown stage'}, Priority: ${tProps.hs_ticket_priority || 'Unknown'}, Created: ${tProps.createdate || 'Unknown'}`;
+    })
+    .join('\n');
+
+  const ordersInfo = orders
+    .map(order => {
+      const oProps = order.properties || {};
+      return `- ${oProps.name || 'Untitled'}: Quantity: ${oProps.quantity || '0'}, Price: ${oProps.price || '0'}, Total: ${oProps.amount || '0'}, Date: ${oProps.createdate || 'Unknown'}`;
+    })
+    .join('\n');
+
+    const notesInfo = notes
+    .map(note => {
+      const nProps = note.properties || {};
+      const formattedDate = nProps.hs_createdate ? formatDate(nProps.hs_createdate) : 'Unknown date';
+      const cleanedNoteBody = stripHtmlTags(nProps.hs_note_body || 'Empty note');
+      return `- ${formattedDate}: ${cleanedNoteBody}`;
+    })
+    .join('\n');
+
   const content = `
 Company Summary for ${props.name || 'Unknown Company'}
 
@@ -241,6 +358,12 @@ ${companyDetails}
 ${contactsInfo ? `Key Contacts:\n${contactsInfo}` : ''}
 
 ${dealsInfo ? `Deals:\n${dealsInfo}` : ''}
+
+${ticketsInfo ? `Tickets:\n${ticketsInfo}` : ''}
+
+${ordersInfo ? `Orders:\n${ordersInfo}` : ''}
+
+${notesInfo ? `Notes:\n${notesInfo}` : ''}
 
 ${props.notes_last_updated ? `Last Note Updated: ${props.notes_last_updated}` : ''}
   `.trim();
@@ -312,7 +435,10 @@ if (isMainThread) {
         if (company) {
           const contacts = await getAssociatedContacts(companyId);
           const deals = await getAssociatedDeals(companyId);
-          await upsertToDustDatasource(company, contacts, deals);
+          const tickets = await getAssociatedTickets(companyId);
+          const orders = await getAssociatedOrders(companyId);
+          const notes = await getNotes(companyId);
+          await upsertToDustDatasource(company, contacts, deals, tickets, orders, notes);
           processedCount++;
         }
       }
@@ -324,3 +450,4 @@ if (isMainThread) {
     }
   })();
 }
+
