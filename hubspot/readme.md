@@ -43,24 +43,24 @@ Notes:
 ## Installation
 
 1. Clone this repository:
-   \```
+   ```
    git clone https://github.com/your-username/hubspot-to-dust-import.git
    cd hubspot-to-dust-import
-   \```
+   ```
 
 2. Install dependencies:
-   \```
+   ```
    npm install
-   \```
+   ```
 
 3. Create a `.env` file in the root directory with the following content:
-   \```
+   ```
    HUBSPOT_ACCESS_TOKEN=your_hubspot_access_token
    HUBSPOT_PORTAL_ID=your_hubspot_portal_id
    DUST_API_KEY=your_dust_api_key
    DUST_WORKSPACE_ID=your_dust_workspace_id
    DUST_DATASOURCE_ID=your_dust_datasource_id
-   \```
+   ```
    Replace the placeholders with your actual credentials.
 
 ## Configuration
@@ -74,9 +74,9 @@ You can adjust the following variables in the script to customize its behavior:
 
 To run the script:
 
-\```
+```
 npm run import
-\```
+```
 
 This command will execute the TypeScript script using ts-node.
 
@@ -103,15 +103,15 @@ The script uses Bottleneck to implement rate limiting for both the HubSpot and D
 
 To compile the TypeScript code to JavaScript:
 
-\```
+```
 npm run build
-\```
+```
 
 To run the linter:
 
-\```
+```
 npm run lint
-\```
+```
 
 ## Contributing
 
