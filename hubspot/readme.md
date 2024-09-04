@@ -4,7 +4,20 @@ This script is designed to import data from HubSpot to Dust datasources. It fetc
 
 ## Usage example
 
-![Example usage of the script](https://i.ibb.co/KFHLb1H/hubpost-compressed.png)
+```
+➜  hubspot git:(main) ✗ npm run import
+
+> hubspot-to-dust-import@1.0.0 import
+> node --no-warnings --loader ts-node/esm hubspot-to-dust.ts
+
+Found 22 companies with updates in the last 1 day(s).
+Worker 0: Starting to process 8 companies
+Worker 1: Starting to process 8 companies
+Worker 2: Starting to process 6 companies
+Upserted company 13519965149 to Dust datasource
+Upserted company 10979757009 to Dust datasource
+[...]
+```
 
 Example of account summary added to the Dust datasource: 
 
