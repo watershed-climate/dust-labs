@@ -1,169 +1,93 @@
-# Salesforce to Dust Data Sync
+# HubSpot to Dust Import
 
-This script is a multi-threaded Node.js application designed to import Salesforce account data into Dust datasources. It fetches recently updated accounts from Salesforce, including related contacts, opportunities, and cases, and then uploads this information to a specified Dust datasource.
-
-## Usage example
-![Example usage of the script](https://i.ibb.co/rtfTyjH/Screenshot-2024-08-20-at-12-00-24.png)
-
-Example of account summary added to the Dust datasource: 
-
-```
-Account Summary for Grand Hotels & Resorts Ltd dd
-Basic Account Details:
-Company Name: Grand Hotels & Resorts Ltd dd
-Industry: Hospitality
-Annual Revenue: $500,000,000
-Number of Employees: 5600
-Phone: (312) 596-1000
-Website: www.grandhotels.com
-Locations:
-Billing Address: 2334 N. Michigan Avenue, Suite 1500
-Chicago, IL 60601, USA, Chicago, IL
-Shipping Address: 2334 N. Michigan Avenue, Suite 1500
-Chicago, IL 60601, USA
-Key Contacts:
-- John Bond, VP, Facilities
-    Email: bond_john@grandhotels.com, Phone: (312) 596-1000
-    Last Modified: 2022-10-17T08:54:06.000+0000
-- Tim Barr, SVP, Administration and Finance
-    Email: barr_tim@grandhotels.com, Phone: (312) 596-1000
-    Last Modified: 2022-10-17T08:54:06.000+0000
-Account Status:
-Type: Customer - Direct
-Rating: Warm
-Account Source: N/A
-Created Date: 2022-10-17T08:54:06.000+0000
-Last Modified Date: 2023-11-30T08:45:06.000+0000
-Last Activity Date: N/A
-Sales Information:
-Open Opportunities:
-- Grand Hotels SLA
-    Stage: Closed Won, Amount: $90,000, Close Date: 2022-07-06
-    Last Modified: 2023-12-18T15:28:14.000+0000
-- Grand Hotels Generator Installations
-    Stage: Closed Won, Amount: $350,000, Close Date: 2022-09-25
-    Last Modified: 2022-10-17T08:54:06.000+0000
-- GRAND Hotels Guest Portable Generators TEAMS UPDATED
-    Stage: Proposal/Price Quote, Amount: $2,500, Close Date: 2023-03-16
-    Last Modified: 2024-02-29T22:31:41.000+0000
-- Grand Hotels Emergency Generators
-    Stage: Closed Won, Amount: $210,000, Close Date: 2022-09-23
-    Last Modified: 2022-10-17T08:54:06.000+0000
-- Grand Hotels Kitchen Generator
-    Stage: Value Proposition, Amount: $1,200, Close Date: 2023-01-18
-    Last Modified: 2024-08-20T07:14:36.000+0000
-Account Health:
-Recent Support Cases:
-- Case Number: 00001013
-    Subject: Starting up generator consumes excessive power, Status: Closed, Created Date: 2022-10-17T08:54:06.000+0000
-    Last Modified: 2022-10-17T08:54:06.000+0000
-- Case Number: 00001008
-    Subject: Customer service for portable generators needs beefing up, Status: Closed, Created Date: 2022-10-17T08:54:06.000+0000
-    Last Modified: 2022-10-17T08:54:06.000+0000
-- Case Number: 00001014
-    Subject: Delay in installation; spare parts unavailable, Status: Closed, Created Date: 2022-10-17T08:54:06.000+0000
-    Last Modified: 2022-10-17T08:54:06.000+0000
-- Case Number: 00001007
-    Subject: Structural breakdown of rotor assembly, Status: Closed, Created Date: 2022-10-17T08:54:06.000+0000
-    Last Modified: 2022-10-17T08:54:06.000+0000
-Additional Information:
-Chain of hotels and resorts across the US, UK, Eastern Europe, Japan, and SE Asia.
-```
+This script is designed to import data from HubSpot to Dust datasources. It fetches recently updated companies from HubSpot, along with their associated contacts and deals, and upserts this information into a specified Dust datasource.
 
 ## Features
 
 - Multi-threaded processing for improved performance
-- Fetches accounts updated within the last 24 hours
-- Includes related Salesforce objects (Contacts, Opportunities, Cases)
-- Supports both username-password and OAuth 2.0 authentication with Salesforce
-- Upserts data to Dust datasources
+- Rate limiting to respect API constraints
+- Detailed error logging
+- Configurable lookback period for recent updates
 
 ## Prerequisites
 
-- Node.js (version 14 or higher recommended)
-- npm (Node Package Manager)
-- Salesforce account with API access
-- Dust account with API access
+- Node.js (v14 or later recommended)
+- npm (comes with Node.js)
+- A HubSpot account with API access
+- A Dust account with API access
 
 ## Installation
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/your-username/salesforce-to-dust-import.git
-   cd salesforce-to-dust-import
-   ```
+1. Clone this repository:
+   \```
+   git clone https://github.com/your-username/hubspot-to-dust-import.git
+   cd hubspot-to-dust-import
+   \```
 
 2. Install dependencies:
-   ```
+   \```
    npm install
-   ```
+   \```
 
-3. Create a `.env` file in the root directory with the following variables:
-
-   ```
-   SF_LOGIN_URL=https://login.salesforce.com
-   SF_USERNAME=your_salesforce_username
-   SF_PASSWORD=your_salesforce_password
-   SF_SECURITY_TOKEN=your_salesforce_security_token
-   SF_CLIENT_ID=your_salesforce_client_id
-   SF_CLIENT_SECRET=your_salesforce_client_secret
+3. Create a `.env` file in the root directory with the following content:
+   \```
+   HUBSPOT_ACCESS_TOKEN=your_hubspot_access_token
+   HUBSPOT_PORTAL_ID=your_hubspot_portal_id
    DUST_API_KEY=your_dust_api_key
    DUST_WORKSPACE_ID=your_dust_workspace_id
-   DUST_DATASOURCE_ID_SALESFORCE=your_dust_datasource_id
-   ```
+   DUST_DATASOURCE_ID=your_dust_datasource_id
+   \```
+   Replace the placeholders with your actual credentials.
 
-   Note: You can use either username-password authentication (SF_USERNAME, SF_PASSWORD, SF_SECURITY_TOKEN) or OAuth 2.0 (SF_CLIENT_ID, SF_CLIENT_SECRET) for Salesforce.
+## Configuration
+
+You can adjust the following variables in the script to customize its behavior:
+
+- `UPDATED_SINCE_DAYS`: Number of days to look back for updates (default: 1)
+- `THREADS_NUMBER`: Number of worker threads to use (default: 3)
 
 ## Usage
 
 To run the script:
 
-```
-npm run accounts
-```
+\```
+npm run import
+\```
 
-This command will execute the `sfdc-accounts-to-dust.ts` script using ts-node.
-
-## Configuration
-
-You can adjust the following variables in the script:
-
-- `UPDATED_SINCE`: Change the time range for fetching updated accounts (default is last 24 hours)
-- `THREADS_NUMBER`: Adjust the number of worker threads (default is 5)
+This command will execute the TypeScript script using ts-node.
 
 ## How It Works
 
-1. The script connects to Salesforce using the provided credentials.
-2. It fetches IDs of accounts that have been updated in the last 24 hours, including accounts with updated contacts, opportunities, or cases.
-3. Detailed information for these accounts is retrieved from Salesforce, including related objects.
-4. The accounts are divided into batches and processed by multiple worker threads.
-5. Each account's information is formatted into a structured text document.
-6. The formatted documents are upserted to the specified Dust datasource.
+1. The script first fetches the IDs of companies that have been updated within the specified time frame.
+2. It then divides these companies among multiple worker threads for parallel processing.
+3. For each company, the script:
+   - Fetches detailed company information
+   - Retrieves associated contacts
+   - Retrieves associated deals
+   - Compiles this information into a structured format
+   - Upserts the compiled data into the specified Dust datasource
 
-## Error Handling
+## Error Handling and Logging
 
-The script includes error handling for various scenarios:
-- Connection errors with Salesforce or Dust API
-- Query execution errors
-- Data processing errors
+The script includes comprehensive error handling and logging. All errors are caught and logged, allowing the script to continue processing other companies even if an error occurs with one.
 
-Errors are logged to the console for debugging purposes.
+## Rate Limiting
 
-## Linting
+The script uses Bottleneck to implement rate limiting for both the HubSpot and Dust APIs, ensuring that we don't exceed the allowed request rates.
+
+## Building and Linting
+
+To compile the TypeScript code to JavaScript:
+
+\```
+npm run build
+\```
 
 To run the linter:
 
-```
+\```
 npm run lint
-```
-
-## Building
-
-To compile TypeScript to JavaScript:
-
-```
-npm run build
-```
+\```
 
 ## Contributing
 
@@ -172,3 +96,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the ISC License.
+
+## Disclaimer
+
+This script is provided as-is, without any guarantees or warranty. The authors are not responsible for any damage or data loss that may occur from its use.
+
+## Support
+
+If you encounter any issues or have questions, ask in the Dust community support: https://community.dust.tt

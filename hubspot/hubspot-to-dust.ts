@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as dotenv from 'dotenv';
+import Bottleneck from 'bottleneck';
 import { Worker, isMainThread, parentPort, workerData } from 'worker_threads';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -41,6 +42,18 @@ const dustApi = axios.create({
   maxBodyLength: Infinity
 });
 
+// Bottleneck limiter for HubSpot API
+const hubspotLimiter = new Bottleneck({
+  maxConcurrent: 1,
+  minTime: 100 // 1000ms / 10 requests per second
+});
+
+// Bottleneck limiter for Dust API
+const dustLimiter = new Bottleneck({
+  maxConcurrent: 1,
+  minTime: 500 // 60000ms / 120 requests per minute
+});
+
 interface Company {
   id: string;
   properties: {
@@ -78,7 +91,7 @@ interface WorkerMessage {
 
 async function getRecentlyUpdatedCompanyIds(): Promise<string[]> {
   try {
-    const response = await hubspotApi.post('/crm/v3/objects/companies/search', {
+    const response = await hubspotLimiter.schedule(() => hubspotApi.post('/crm/v3/objects/companies/search', {
       filterGroups: [{
         filters: [{
           propertyName: 'hs_lastmodifieddate',
@@ -88,7 +101,7 @@ async function getRecentlyUpdatedCompanyIds(): Promise<string[]> {
       }],
       properties: ['hs_object_id'],
       limit: 100
-    });
+    }));
     return response.data.results.map((company: Company) => company.id);
   } catch (error) {
     console.error('Error fetching recently updated company IDs:', error);
@@ -98,11 +111,16 @@ async function getRecentlyUpdatedCompanyIds(): Promise<string[]> {
 
 async function getCompanyDetails(companyId: string): Promise<Company | null> {
   try {
-    const response = await hubspotApi.get(`/crm/v3/objects/companies/${companyId}`, {
+    const response = await hubspotLimiter.schedule(() => hubspotApi.get(`/crm/v3/objects/companies/${companyId}`, {
       params: {
-        properties: ['name', 'industry', 'annualrevenue', 'numberofemployees', 'phone', 'website', 'description', 'hs_lead_status', 'createdate', 'hs_lastmodifieddate']
+        properties: [
+          'name', 'industry', 'annualrevenue', 'numberofemployees', 'phone', 'website', 'description',
+          'hs_lead_status', 'createdate', 'hs_lastmodifieddate', 'lifecyclestage', 'hubspot_owner_id',
+          'type', 'city', 'state', 'country', 'zip', 'address', 'facebook_company_page', 'linkedin_company_page',
+          'twitterhandle', 'hs_analytics_source', 'notes_last_updated', 'hs_pipeline'
+        ]
       }
-    });
+    }));
     return response.data;
   } catch (error) {
     console.error(`Error fetching details for company ${companyId}:`, error);
@@ -112,21 +130,21 @@ async function getCompanyDetails(companyId: string): Promise<Company | null> {
 
 async function getAssociatedContacts(companyId: string): Promise<Contact[]> {
   try {
-    const response = await hubspotApi.get(`/crm/v3/objects/companies/${companyId}/associations/contacts`, {
+    const response = await hubspotLimiter.schedule(() => hubspotApi.get(`/crm/v3/objects/companies/${companyId}/associations/contacts`, {
       params: {
         limit: 100
       }
-    });
+    }));
     const contactIds = response.data.results.map((result: any) => result.id);
-    
+
     if (contactIds.length === 0) {
       return [];
     }
 
-    const contactsResponse = await hubspotApi.post('/crm/v3/objects/contacts/batch/read', {
+    const contactsResponse = await hubspotLimiter.schedule(() => hubspotApi.post('/crm/v3/objects/contacts/batch/read', {
       properties: ['firstname', 'lastname', 'email', 'phone', 'jobtitle'],
       inputs: contactIds.map(id => ({ id }))
-    });
+    }));
 
     return contactsResponse.data.results;
   } catch (error) {
@@ -137,21 +155,21 @@ async function getAssociatedContacts(companyId: string): Promise<Contact[]> {
 
 async function getAssociatedDeals(companyId: string): Promise<Deal[]> {
   try {
-    const response = await hubspotApi.get(`/crm/v3/objects/companies/${companyId}/associations/deals`, {
+    const response = await hubspotLimiter.schedule(() => hubspotApi.get(`/crm/v3/objects/companies/${companyId}/associations/deals`, {
       params: {
         limit: 100
       }
-    });
+    }));
     const dealIds = response.data.results.map((result: any) => result.id);
-    
+
     if (dealIds.length === 0) {
       return [];
     }
 
-    const dealsResponse = await hubspotApi.post('/crm/v3/objects/deals/batch/read', {
+    const dealsResponse = await hubspotLimiter.schedule(() => hubspotApi.post('/crm/v3/objects/deals/batch/read', {
       properties: ['dealname', 'dealstage', 'amount', 'closedate'],
       inputs: dealIds.map(id => ({ id }))
-    });
+    }));
 
     return dealsResponse.data.results;
   } catch (error) {
@@ -168,9 +186,20 @@ async function upsertToDustDatasource(company: Company, contacts: Contact[], dea
     `Company Name: ${props.name || 'Unknown Company'}`,
     props.industry && `Industry: ${props.industry}`,
     props.annualrevenue && `Annual Revenue: ${props.annualrevenue}`,
-    props.numberofemployees && `Number of Employees: ${props.numberofemployees}`,
+    props.numberofemployees && `Company Size: ${props.numberofemployees} employees`,
     props.phone && `Phone: ${props.phone}`,
     props.website && `Website: ${props.website}`,
+    props.description && `Description: ${props.description}`,
+    props.lifecyclestage && `Lifecycle Stage: ${props.lifecyclestage}`,
+    props.hubspot_owner_id && `Owner: ${props.hubspot_owner_id}`,
+    props.hs_lead_status && `Lead Status: ${props.hs_lead_status}`,
+    props.type && `Type: ${props.type}`,
+    props.address && `Address: ${props.address}, ${props.city || ''}, ${props.state || ''}, ${props.country || ''}, ${props.zip || ''}`,
+    props.facebook_company_page && `Facebook: ${props.facebook_company_page}`,
+    props.linkedin_company_page && `LinkedIn: ${props.linkedin_company_page}`,
+    props.twitterhandle && `Twitter: ${props.twitterhandle}`,
+    props.hs_analytics_source && `Source: ${props.hs_analytics_source}`,
+    props.hs_pipeline && `Pipeline: ${props.hs_pipeline}`,
   ].filter(Boolean).join('\n');
 
   const contactsInfo = contacts
@@ -182,17 +211,11 @@ async function upsertToDustDatasource(company: Company, contacts: Contact[], dea
         cProps.email && `Email: ${cProps.email}`,
         cProps.phone && `Phone: ${cProps.phone}`,
       ].filter(Boolean);
-      
+
       return contactDetails.length > 0 ? `- ${contactDetails.join(', ')}` : null;
     })
     .filter(Boolean)
     .join('\n');
-
-  const companyStatus = [
-    props.hs_lead_status && `Lead Status: ${props.hs_lead_status}`,
-    props.createdate && `Created Date: ${props.createdate}`,
-    props.hs_lastmodifieddate && `Last Modified Date: ${props.hs_lastmodifieddate}`,
-  ].filter(Boolean).join('\n');
 
   const dealsInfo = deals
     .map(deal => {
@@ -203,7 +226,7 @@ async function upsertToDustDatasource(company: Company, contacts: Contact[], dea
         dProps.amount && `Amount: ${dProps.amount}`,
         dProps.closedate && `Close Date: ${dProps.closedate}`,
       ].filter(Boolean);
-      
+
       return dealDetails.length > 0 ? `- ${dealDetails.join(', ')}` : null;
     })
     .filter(Boolean)
@@ -217,18 +240,16 @@ ${companyDetails}
 
 ${contactsInfo ? `Key Contacts:\n${contactsInfo}` : ''}
 
-${companyStatus ? `Company Status:\n${companyStatus}` : ''}
-
 ${dealsInfo ? `Deals:\n${dealsInfo}` : ''}
 
-${props.description ? `Additional Information:\n${props.description}` : ''}
+${props.notes_last_updated ? `Last Note Updated: ${props.notes_last_updated}` : ''}
   `.trim();
 
   try {
-    await dustApi.post(`/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`, {
+    await dustLimiter.schedule(() => dustApi.post(`/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`, {
       source_url: `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/company/${company.id}`,
       text: content
-    });
+    }));
     console.log(`Upserted company ${company.id} to Dust datasource`);
   } catch (error) {
     console.error(`Error upserting company ${company.id} to Dust datasource:`, error);
