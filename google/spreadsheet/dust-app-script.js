@@ -21,13 +21,13 @@ const ERROR_PREFIX = "Error:";
  * @return {string} The assistant's response or an error message.
  * @customfunction
  */
-function DUST(assistantName, prompt, input) {
+function DUST(assistantName = "SecuritySam", prompt = "answer", input = "are you soc2") {
   if (Array.isArray(input)) {
     return wrapWithError("This function can only be run on a single cell.");
   }
 
   try {
-    const assistantId = listAssistants(assistantName);
+    const assistantId = findAssistant(assistantName);
     if (!assistantId) {
       return wrapWithError(`Assistant "${assistantName}" not found.`);
     }
@@ -54,8 +54,8 @@ function DUST(assistantName, prompt, input) {
  * @param {string} assistantName - Name of the assistant to find.
  * @return {string|null} The assistant ID if found, null otherwise.
  */
-function listAssistants(assistantName) {
-  const url = `${BASE_URL}/assistant/agent_configurations`;
+function findAssistant(assistantName) {
+  const url = `${BASE_URL}/assistant/agent_configurations/search?q=`+assistantName;
   const options = {
     method: "get",
     headers: {
@@ -79,15 +79,13 @@ function listAssistants(assistantName) {
       return null;
     }
 
-    const assistants = JSON.parse(responseText);
-    if (!assistants || !assistants.agentConfigurations.length) {
+    const result = JSON.parse(responseText);
+    if (!result || !result.agentConfigurations.length) {
       console.log("No assistants found in the API response");
       return null;
     }
 
-    const assistant = assistants.agentConfigurations.find(
-      (a) => a.name.toLowerCase() === assistantName.toLowerCase()
-    );
+    const assistant = result.agentConfigurations[0]
     if (!assistant) {
       console.log(`Assistant "${assistantName}" not found.`);
       return null;
@@ -95,7 +93,7 @@ function listAssistants(assistantName) {
 
     return assistant.sId;
   } catch (error) {
-    console.error(`Error in listAssistants: ${error}`);
+    console.error(`Error in searchAssistant: ${error}`);
     return null;
   }
 }
