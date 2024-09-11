@@ -1,14 +1,9 @@
 import axios from 'axios';
 import * as dotenv from 'dotenv';
 import jsforce from 'jsforce';
-import { Worker, isMainThread, parentPort, workerData } from 'worker_threads';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import Bottleneck from 'bottleneck';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const SF_LOGIN_URL = process.env.SF_LOGIN_URL;
 const SF_USERNAME = process.env.SF_USERNAME;
@@ -20,11 +15,31 @@ const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 const UPDATED_SINCE = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-const THREADS_NUMBER = 5;
 
-if (!SF_LOGIN_URL || !(SF_USERNAME && SF_PASSWORD && SF_SECURITY_TOKEN) || !(SF_CLIENT_ID && SF_CLIENT_SECRET) || !DUST_API_KEY || !DUST_WORKSPACE_ID || !DUST_DATASOURCE_ID) {
-  throw new Error('Please provide values for SF_LOGIN_URL, SF_USERNAME, SF_PASSWORD, SF_SECURITY_TOKEN, SF_CLIENT_ID, SF_CLIENT_SECRET, DUST_API_KEY, DUST_WORKSPACE_ID, and DUST_DATASOURCE_ID_SALESFORCE in .env file.');
+const missingVars = [];
+
+if (!SF_LOGIN_URL) missingVars.push('SF_LOGIN_URL');
+
+const usernamePasswordMissing = !(SF_USERNAME && SF_PASSWORD && SF_SECURITY_TOKEN);
+const clientCredentialsMissing = !(SF_CLIENT_ID && SF_CLIENT_SECRET);
+
+if (usernamePasswordMissing && clientCredentialsMissing) {
+  missingVars.push('(SF_USERNAME, SF_PASSWORD, and SF_SECURITY_TOKEN) or (SF_CLIENT_ID and SF_CLIENT_SECRET)');
 }
+
+if (!DUST_API_KEY) missingVars.push('DUST_API_KEY');
+if (!DUST_WORKSPACE_ID) missingVars.push('DUST_WORKSPACE_ID');
+if (!DUST_DATASOURCE_ID) missingVars.push('DUST_DATASOURCE_ID');
+
+if (missingVars.length > 0) {
+  throw new Error(`Please provide values for the following environment variables in the .env file: ${missingVars.join(', ')}. Note that you need to provide either (SF_USERNAME, SF_PASSWORD, and SF_SECURITY_TOKEN) or (SF_CLIENT_ID and SF_CLIENT_SECRET).`);
+}
+
+// Rate limiter for Dust API (120 requests per minute)
+const limiter = new Bottleneck({
+  minTime: 500, // Minimum time between requests (in ms)
+  maxConcurrent: 10, // Maximum number of concurrent requests
+});
 
 const dustApi = axios.create({
   baseURL: 'https://dust.tt/api/v1',
@@ -34,6 +49,11 @@ const dustApi = axios.create({
   },
   maxContentLength: Infinity,
   maxBodyLength: Infinity
+});
+
+// Wrap the dustApi.post method with the rate limiter
+const rateLimitedDustApiPost = limiter.wrap(async (url: string, data: any) => {
+  return await dustApi.post(url, data);
 });
 
 interface Account {
@@ -94,20 +114,21 @@ interface Account {
   };
 }
 
-interface WorkerMessage {
-  type: 'log' | 'error' | 'result';
-  data: any;
-}
-
 async function connectToSalesforce(): Promise<jsforce.Connection> {
   let conn: jsforce.Connection;
+  const connectionOptions = {
+    loginUrl: SF_LOGIN_URL,
+    version: '53.0', // Specify a version
+    maxRequest: 5, // Limit concurrent requests
+    timeout: 60000, // 60 seconds timeout
+  };
+
   if (SF_USERNAME && SF_PASSWORD && SF_SECURITY_TOKEN) {
-    conn = new jsforce.Connection({
-      loginUrl: SF_LOGIN_URL
-    });
+    conn = new jsforce.Connection(connectionOptions);
     await conn.login(SF_USERNAME, SF_PASSWORD + SF_SECURITY_TOKEN);
   } else if (SF_CLIENT_ID && SF_CLIENT_SECRET) {
     conn = new jsforce.Connection({
+      ...connectionOptions,
       oauth2: {
         clientId: SF_CLIENT_ID,
         clientSecret: SF_CLIENT_SECRET,
@@ -123,6 +144,7 @@ async function connectToSalesforce(): Promise<jsforce.Connection> {
     throw new Error('Insufficient authentication information provided');
   }
   console.log('Connected to Salesforce');
+  console.log('Date of last update:', UPDATED_SINCE);
   return conn;
 }
 
@@ -135,11 +157,18 @@ async function getRecentlyUpdatedAccountIds(conn: jsforce.Connection): Promise<S
   ];
   const accountIds = new Set<string>();
   for (const query of queries) {
+    console.log(`Executing query: ${query}`);
     try {
-      const result = await conn.query<{ Id: string; AccountId?: string }>(query);
-      result.records.forEach(record => {
-        accountIds.add(record.Id || record.AccountId || '');
-      });
+      let result = await conn.query<{ Id: string; AccountId?: string }>(query);
+      console.log(`Found ${result.totalSize} records`);
+      do {
+        result.records.forEach(record => {
+          accountIds.add(record.Id || record.AccountId || '');
+        });
+        if (!result.done) {
+          result = await conn.queryMore<{ Id: string; AccountId?: string }>(result.nextRecordsUrl);
+        }
+      } while (!result.done);
     } catch (error) {
       console.error(`Error executing query: ${query}`, error);
     }
@@ -161,8 +190,15 @@ async function getAccountDetails(conn: jsforce.Connection, accountIds: string[])
     WHERE Id IN ('${accountIds.join("','")}')
   `;
   try {
-    const result = await conn.query<Account>(query);
-    return result.records;
+    let result = await conn.query<Account>(query);
+    const accounts: Account[] = [];
+    do {
+      accounts.push(...result.records);
+      if (!result.done) {
+        result = await conn.queryMore<Account>(result.nextRecordsUrl);
+      }
+    } while (!result.done);
+    return accounts;
   } catch (error) {
     console.error('Error fetching account details from Salesforce:', error);
     throw error;
@@ -219,7 +255,7 @@ Additional Information:
 ${account.Description || 'No additional information provided.'}
   `.trim();
   try {
-    await dustApi.post(`/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`, {
+    await rateLimitedDustApiPost(`/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`, {
       source_url: `${SF_LOGIN_URL}/${account.Id}`,
       text: content
     });
@@ -229,68 +265,25 @@ ${account.Description || 'No additional information provided.'}
   }
 }
 
-if (isMainThread) {
-  async function main() {
-    try {
-      const conn = await connectToSalesforce();
-      const accountIds = await getRecentlyUpdatedAccountIds(conn);
-      console.log(`Found ${accountIds.size} accounts with updates in the last 24 hours.`);
+async function main() {
+  try {
+    const conn = await connectToSalesforce();
+    console.log('Fetching recently updated accounts from Salesforce...');
+    const accountIds = await getRecentlyUpdatedAccountIds(conn);
+    console.log(`Found ${accountIds.size} accounts with updates in the last 24 hours.`);
 
-      const accounts = await getAccountDetails(conn, Array.from(accountIds));
-      await conn.logout();
+    const accounts = await getAccountDetails(conn, Array.from(accountIds));
+    await conn.logout();
 
-      const batchSize = Math.ceil(accounts.length / THREADS_NUMBER);
-      const batches = Array.from({ length: THREADS_NUMBER }, (_, i) =>
-        accounts.slice(i * batchSize, (i + 1) * batchSize)
-      );
+    console.log(`Processing ${accounts.length} accounts...`);
+    const upsertPromises = accounts.map(account => upsertToDustDatasource(account));
+    await Promise.all(upsertPromises);
 
-      const workers = batches.map((batch, index) =>
-        new Worker(new URL(import.meta.url), { workerData: { batch, index } })
-      );
-
-      let processedAccounts = 0;
-      await Promise.all(workers.map(worker => new Promise<void>((resolve, reject) => {
-        worker.on('message', (message: WorkerMessage) => {
-          if (message.type === 'log') {
-            console.log(`Worker ${message.data.index}:`, message.data.message);
-          } else if (message.type === 'error') {
-            console.error(`Worker ${message.data.index} error:`, message.data.error);
-          } else if (message.type === 'result') {
-            processedAccounts += message.data;
-          }
-        });
-        worker.on('error', reject);
-        worker.on('exit', code => {
-          if (code !== 0) {
-            reject(new Error(`Worker stopped with exit code ${code}`));
-          } else {
-            resolve();
-          }
-        });
-      })));
-
-      console.log(`Processed ${processedAccounts} out of ${accounts.length} accounts`);
-      console.log('Finished processing accounts');
-    } catch (error) {
-      console.error('An error occurred:', error);
-    }
+    console.log(`Processed ${accounts.length} accounts`);
+    console.log('Finished processing accounts');
+  } catch (error) {
+    console.error('An error occurred:', error);
   }
-
-  main();
-} else {
-  (async () => {
-    try {
-      const { batch, index } = workerData as { batch: Account[], index: number };
-      parentPort?.postMessage({ type: 'log', data: { index, message: `Starting to process ${batch.length} accounts` } });
-      let processedCount = 0;
-      for (const account of batch) {
-        await upsertToDustDatasource(account);
-        processedCount++;
-      }
-      parentPort?.postMessage({ type: 'result', data: processedCount });
-      parentPort?.postMessage({ type: 'log', data: { index, message: `Finished processing ${processedCount} accounts` } });
-    } catch (error) {
-      parentPort?.postMessage({ type: 'error', data: { index: workerData.index, error } });
-    }
-  })();
 }
+
+main();
