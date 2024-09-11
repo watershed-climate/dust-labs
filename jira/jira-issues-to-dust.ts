@@ -1,6 +1,6 @@
-import axios, { AxiosResponse } from "axios";
+import axios, { AxiosResponse, AxiosError } from "axios";
 import * as dotenv from "dotenv";
-import pLimit from "p-limit";
+import Bottleneck from "bottleneck";
 
 dotenv.config();
 
@@ -11,20 +11,24 @@ const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 
-if (
-  !JIRA_SUBDOMAIN ||
-  !JIRA_EMAIL ||
-  !JIRA_API_TOKEN ||
-  !DUST_API_KEY ||
-  !DUST_WORKSPACE_ID ||
-  !DUST_DATASOURCE_ID
-) {
+const requiredEnvVars = [
+  'JIRA_SUBDOMAIN',
+  'JIRA_EMAIL',
+  'JIRA_API_TOKEN',
+  'DUST_API_KEY',
+  'DUST_WORKSPACE_ID',
+  'DUST_DATASOURCE_ID'
+];
+
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
   throw new Error(
-    "Please provide values for JIRA_SUBDOMAIN, JIRA_EMAIL, JIRA_API_TOKEN, DUST_API_KEY, DUST_WORKSPACE_ID, and DUST_DATASOURCE_ID in .env file."
+    `Please provide values for the following environment variables: ${missingEnvVars.join(', ')}`
   );
 }
 
-const THREADS_NUMBER = 3;
+const DUST_RATE_LIMIT = 120; // requests per minute
 const ISSUES_UPDATED_SINCE = "24h";
 
 const jiraApi = axios.create({
@@ -151,45 +155,57 @@ async function getIssuesUpdatedLast24Hours(): Promise<JiraIssue[]> {
   const maxResults = 50;
   let total = 0;
 
+  const makeRequest = async (retryCount = 0): Promise<AxiosResponse<JiraSearchResponse>> => {
+    try {
+      return await jiraApi.post("/search", {
+        jql: `updated >= -${ISSUES_UPDATED_SINCE} ORDER BY updated DESC`,
+        startAt,
+        maxResults,
+        fields: [
+          "summary",
+          "description",
+          "issuetype",
+          "status",
+          "priority",
+          "assignee",
+          "reporter",
+          "project",
+          "created",
+          "updated",
+          "resolutiondate",
+          "resolution",
+          "labels",
+          "components",
+          "timeoriginalestimate",
+          "timeestimate",
+          "timespent",
+          "votes",
+          "watches",
+          "fixVersions",
+          "versions",
+          "subtasks",
+          "issuelinks",
+          "attachment",
+          "comment",
+        ],
+        expand: ["renderedFields"],
+      });
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        if (error.response.status === 429 && retryCount < 3) {
+          const retryAfter = parseInt(error.response.headers['retry-after'] || '60', 10);
+          console.log(`Rate limited. Retrying after ${retryAfter} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+          return makeRequest(retryCount + 1);
+        }
+      }
+      throw error;
+    }
+  };
+
   do {
     try {
-      const response: AxiosResponse<JiraSearchResponse> = await jiraApi.post(
-        "/search",
-        {
-          jql: `updated >= -${ISSUES_UPDATED_SINCE} ORDER BY updated DESC`,
-          startAt,
-          maxResults,
-          fields: [
-            "summary",
-            "description",
-            "issuetype",
-            "status",
-            "priority",
-            "assignee",
-            "reporter",
-            "project",
-            "created",
-            "updated",
-            "resolutiondate",
-            "resolution",
-            "labels",
-            "components",
-            "timeoriginalestimate",
-            "timeestimate",
-            "timespent",
-            "votes",
-            "watches",
-            "fixVersions",
-            "versions",
-            "subtasks",
-            "issuelinks",
-            "attachment",
-            "comment",
-          ],
-          expand: ["renderedFields"],
-        }
-      );
-
+      const response = await makeRequest();
       allIssues = allIssues.concat(response.data.issues);
       total = response.data.total;
       startAt += maxResults;
@@ -237,40 +253,6 @@ ${comment.body.content
 `
     )
     .join("\n");
-}
-
-type RetryOptions = {
-  retries?: number;
-  delayBetweenRetriesMs?: number;
-};
-
-export function withRetries<T, U>(
-  fn: (arg: T) => Promise<U>,
-  { retries = 3, delayBetweenRetriesMs = 500 }: RetryOptions = {}
-): (arg: T & RetryOptions) => Promise<U> {
-  if (retries < 1) {
-    throw new Error("retries must be >= 1");
-  }
-  return async (arg) => {
-    const errors: any[] = [];
-    for (let i = 0; i < retries; i++) {
-      try {
-        return await fn(arg);
-      } catch (e) {
-        const sleepTime = delayBetweenRetriesMs * (i + 1) ** 2;
-        console.warn(
-          `Retrying error while upserting to data source (attempt=${
-            i + 1
-          } retries=${retries} sleepTime=${sleepTime}ms)`,
-          e
-        );
-        await new Promise((resolve) => setTimeout(resolve, sleepTime));
-        errors.push(e);
-      }
-    }
-
-    throw new Error(errors.join("\n"));
-  };
 }
 
 async function upsertToDustDatasource(issue: JiraIssue) {
@@ -344,6 +326,7 @@ ${formatComments(issue.fields.comment.comments)}
       `Error upserting issue ${issue.key} to Dust datasource:`,
       error
     );
+    throw error;
   }
 }
 
@@ -354,19 +337,14 @@ async function main() {
       `Found ${recentIssues.length} issues updated in the last 24 hours.`
     );
 
-    const limit = pLimit(THREADS_NUMBER);
-    const tasks: Promise<void>[] = [];
+    const limiter = new Bottleneck({
+      maxConcurrent: DUST_RATE_LIMIT,
+      minTime: 60 * 1000 / DUST_RATE_LIMIT,
+    });
 
-    for (const issue of recentIssues) {
-      tasks.push(
-        limit(async () => {
-          await withRetries(upsertToDustDatasource, {
-            retries: 4,
-            delayBetweenRetriesMs: 1000,
-          })(issue);
-        })
-      );
-    }
+    const tasks = recentIssues.map((issue) =>
+      limiter.schedule(() => upsertToDustDatasource(issue))
+    );
 
     await Promise.all(tasks);
     console.log("All issues processed successfully.");
