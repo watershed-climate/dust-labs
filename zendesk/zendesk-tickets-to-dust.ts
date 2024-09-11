@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 import * as dotenv from 'dotenv';
-import pLimit from 'p-limit';
+import Bottleneck from 'bottleneck';
 
 dotenv.config();
 
@@ -11,12 +11,18 @@ const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 
-if(!ZENDESK_SUBDOMAIN || !ZENDESK_EMAIL || !ZENDESK_API_TOKEN || !DUST_API_KEY || !DUST_WORKSPACE_ID || !DUST_DATASOURCE_ID) {
-  throw new Error('Please provide values for ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, ZENDESK_API_TOKEN, DUST_API_KEY, DUST_WORKSPACE_ID, and DUST_DATASOURCE_ID in .env file.');
-}
+const missingEnvVars = [
+  ['ZENDESK_SUBDOMAIN', ZENDESK_SUBDOMAIN],
+  ['ZENDESK_EMAIL', ZENDESK_EMAIL],
+  ['ZENDESK_API_TOKEN', ZENDESK_API_TOKEN],
+  ['DUST_API_KEY', DUST_API_KEY],
+  ['DUST_WORKSPACE_ID', DUST_WORKSPACE_ID],
+  ['DUST_DATASOURCE_ID', DUST_DATASOURCE_ID]
+].filter(([name, value]) => !value).map(([name]) => name);
 
-// Number of parallel threads
-const THREADS_NUMBER = 5;
+if (missingEnvVars.length > 0) {
+  throw new Error(`Please provide values for the following environment variables in the .env file: ${missingEnvVars.join(', ')}`);
+}
 
 // 24 hours ago in seconds
 const TICKETS_UPDATED_SINCE = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
@@ -50,6 +56,12 @@ zendeskApi.interceptors.response.use(
   }
 );
 
+// Create a Bottleneck limiter for Dust API
+const dustLimiter = new Bottleneck({
+  minTime: 500, // 500ms between requests
+  maxConcurrent: 1, // Only 1 request at a time
+});
+
 const dustApi = axios.create({
   baseURL: 'https://dust.tt/api/v1',
   headers: {
@@ -59,6 +71,12 @@ const dustApi = axios.create({
   maxContentLength: Infinity,
   maxBodyLength: Infinity
 });
+
+// Wrap dustApi.post with the limiter
+const limitedDustApiPost = dustLimiter.wrap(
+  (url: string, data: any, config?: any) => dustApi.post(url, data, config)
+);
+
 
 interface Ticket {
   id: number;
@@ -102,8 +120,12 @@ async function getTicketsUpdatedLast24Hours(): Promise<number[]> {
   let currentPage = 1;
   let totalCount = 0;
 
+  console.log('Fetching tickets updated since:', TICKETS_UPDATED_SINCE);
+
   do {
     try {
+      console.log('Fetching tickets page:', currentPage);
+
       const response: AxiosResponse<ZendeskIncrementalResponse> = await zendeskApi.get('/incremental/tickets.json', {
         params: {
           start_time: TICKETS_UPDATED_SINCE,
@@ -216,54 +238,53 @@ ${comment.body}
   `.trim();
 
   try {
-    await dustApi.post(`/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`, {
-      text: content
-    });
+    await limitedDustApiPost(
+      `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
+      {
+        text: content,
+        source_url: `https://${ZENDESK_SUBDOMAIN}.zendesk.com/agent/tickets/${ticket.id}`
+      }
+    );
     console.log(`Upserted ticket ${ticket.id} to Dust datasource`);
   } catch (error) {
     console.error(`Error upserting ticket ${ticket.id} to Dust datasource:`, error);
   }
 }
 
+
 async function main() {
   try {
     const recentTicketIds = await getTicketsUpdatedLast24Hours();
     console.log(`Found ${recentTicketIds.length} tickets updated in the last 24 hours.`);
 
-    const limit = pLimit(THREADS_NUMBER);
-    const tasks: Promise<void>[] = [];
-
     for (let i = 0; i < recentTicketIds.length; i += 100) {
       const batchIds = recentTicketIds.slice(i, i + 100);
-      tasks.push(limit(async () => {
-        const tickets = await getTicketsBatch(batchIds);
+      const tickets = await getTicketsBatch(batchIds);
+      
+      for (const ticket of tickets) {
+        const comments = await getTicketComments(ticket.id);
         
-        for (const ticket of tickets) {
-          const comments = await getTicketComments(ticket.id);
-          
-          const uniqueAuthorIds = new Set(comments.map(comment => comment.author_id));
-          if (ticket.assignee_id !== null) {
-            uniqueAuthorIds.add(ticket.assignee_id);
-          }
-          const users = new Map<number, User>();
-          for (const authorId of uniqueAuthorIds) {
-            const user = await getUser(authorId);
-            if (user) {
-              users.set(authorId, user);
-            }
-          }
-          const assignee = ticket.assignee_id !== null ? users.get(ticket.assignee_id) || null : null;
-          
-          let customStatus: string | null = null;
-          if (ticket.custom_status_id !== undefined && ticket.custom_status_id !== null) {
-            customStatus = await getCustomStatus(ticket.custom_status_id);
-          }
-          await upsertToDustDatasource(ticket, comments, users, assignee, customStatus);
+        const uniqueAuthorIds = new Set(comments.map(comment => comment.author_id));
+        if (ticket.assignee_id !== null) {
+          uniqueAuthorIds.add(ticket.assignee_id);
         }
-      }));
+        const users = new Map<number, User>();
+        for (const authorId of uniqueAuthorIds) {
+          const user = await getUser(authorId);
+          if (user) {
+            users.set(authorId, user);
+          }
+        }
+        const assignee = ticket.assignee_id !== null ? users.get(ticket.assignee_id) || null : null;
+        
+        let customStatus: string | null = null;
+        if (ticket.custom_status_id !== undefined && ticket.custom_status_id !== null) {
+          customStatus = await getCustomStatus(ticket.custom_status_id);
+        }
+        await upsertToDustDatasource(ticket, comments, users, assignee, customStatus);
+      }
     }
 
-    await Promise.all(tasks);
     console.log('All tickets processed successfully.');
   } catch (error) {
     console.error('An error occurred:', error);
