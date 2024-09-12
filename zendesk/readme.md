@@ -1,6 +1,15 @@
-# Zendesk tickets to Dust Data Import
+# Zendesk to Dust Datasource Import
 
-This script imports Zendesk tickets updated in the last 24 hours into a Dust datasource. It fetches ticket details, comments, user information, and custom statuses from Zendesk, then formats and uploads this data to a specified Dust datasource.
+This script imports Zendesk data into a Dust datasource. 
+Two types of data can be fetched: 
+
+### Tickets import
+By default, the script will import tickets updated in the last 24 hours 
+It fetches ticket details, comments, user information, and custom statuses from Zendesk, then formats and uploads this data to a specified Dust datasource.
+
+### Knowledge Base import
+The script can also import articles from Zendesk's Knowledge Base. (Help center)
+If fetches all articles at once, then formats and uploads this data to a specified Dust datasource.
 
 ## Installation
 
@@ -36,11 +45,15 @@ Replace the placeholder values with your actual Zendesk and Dust credentials.
 
 To run the script:
 
+*To import tickets updated in the last 24h:*
 ```
 npm run tickets
 ```
 
-This command will execute the `zendesk-tickets-to-dust.ts` script using `ts-node`.
+*To import all articles from Zendesk's Knowledge Base:*
+```
+npm run articles
+```
 
 ## How It Works
 
