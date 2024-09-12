@@ -5,6 +5,7 @@
   "main": "index.ts",
   "scripts": {
     "tickets": "ts-node zendesk-tickets-to-dust.ts",
+    "articles": "ts-node zendesk-articles-to-dust.ts",
     "build": "tsc"
   },
   "keywords": [],
