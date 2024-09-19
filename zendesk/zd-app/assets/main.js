@@ -69,7 +69,6 @@ function convertMarkdownToHtml(markdown) {
   }
 
   async function checkUserValidity(dustWorkspaceId, dustApiKey, userEmail) {
-    console.log('CHECKING USER EMAIL', userEmail);
     const validationUrl = `https://dust.tt/api/v1/w/${dustWorkspaceId}/members/validate`;
     const options = {
       url: validationUrl,
@@ -84,10 +83,8 @@ function convertMarkdownToHtml(markdown) {
     try {
       const response = await client.request(options);
       if (response && response.valid) {
-        console.log('User is valid:', response);
         return true;
       } else {
-        console.error('User is not valid:', response);
         return false;
       }
     } catch (error) {
@@ -370,7 +367,6 @@ function convertMarkdownToHtml(markdown) {
     const formattedAnswer = answerContent.replace(/\n/g, '<br>');
     try {
       await client.invoke('ticket.editor.insert', formattedAnswer);
-      console.log('Answer inserted into ticket editor');
     } catch (error) {
       console.error('Error inserting answer into ticket editor:', error);
     }
