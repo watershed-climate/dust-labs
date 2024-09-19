@@ -26,5 +26,16 @@
     }
   },
   "version": "1.0",
-  "frameworkVersion": "2.0"
+  "frameworkVersion": "2.0",
+  "screenshots": [
+    {
+      "url": "assets/screenshot-1.png"
+    },
+    {
+      "url": "assets/screenshot-2.png"
+    },
+    {
+      "url": "assets/screenshot-3.png"
+    }
+  ]
 }

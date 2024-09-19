@@ -1,8 +1,18 @@
 {
   "app": {
-    "name": "Zen Tunes",
-    "short_description": "Play the famous zen tunes in your help desk.",
-    "long_description": "Play the famous zen tunes in your help desk and \n listen to the beats it has to offer.",
-    "installation_instructions": "Simply click install."
+    "name": "Dust",
+    "short_description": "Use your Dust assistants directly from Zendesk",
+    "long_description": "Use your Dust assistants directly from Zendesk with the full context of the current ticket you are working on, and facilitate the work of your support agents by building automatically perfect ticket resolution answers based on previous tickets and your knowledge base. Your users will need a Dust account for this app to work on their Zendesk account.",
+    "installation_instructions": "Click install, an provide your workspace ID and API Key.",
+    "parameters": {
+      "dust_api_key": {
+        "label": "Dust API Key",
+        "helpText": "Enter your Dust API key"
+      },
+      "dust_workspace_id": {
+        "label": "Dust Workspace ID",
+        "helpText": "Enter your Dust Workspace ID"
+      }
+    }
   }
 }
