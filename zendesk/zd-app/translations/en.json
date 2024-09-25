@@ -1,17 +1,21 @@
 {
   "app": {
-    "name": "Dust",
-    "short_description": "Use your Dust assistants directly from Zendesk",
-    "long_description": "Use your Dust assistants directly from Zendesk with the full context of the current ticket you are working on, and facilitate the work of your support agents by building automatically perfect ticket resolution answers based on previous tickets and your knowledge base. Your users will need a Dust account for this app to work on their Zendesk account.",
-    "installation_instructions": "Click install, an provide your workspace ID and API Key.",
+    "name": "Dust AI Assistant",
+    "short_description": "Integrate Dust AI assistants directly into your Zendesk workflow",
+    "long_description": "The Dust AI Assistant app brings the power of your custom Dust AI assistants directly into Zendesk, enhancing your support workflow:\n\n- **Seamless Integration**: Interact with Dust assistants while working on tickets\n- **Context-Aware AI**: Leverages full ticket context, including customer info and conversation history\n- **Intelligent Suggestions**: Provides AI-powered recommendations for ticket resolution\n- **Auto-Generated Responses**: Creates high-quality responses based on your knowledge base and historical data\n- **Efficiency Boost**: Streamlines ticket resolution process and improves support productivity\n\n**Note**: Users must have an active Dust account to use this app within Zendesk.",
+    "installation_instructions": "To install the Dust AI Assistant app:\n\n1. Click the 'Install' button\n2. In the app settings, provide:\n   - Your Dust Workspace ID\n   - Your Dust API Key\n3. (Optional) Specify default assistant IDs to limit available assistants\n4. Save the settings\n5. Refresh your Zendesk agent interface\n\nFor detailed setup instructions, please refer to our [documentation](https://dust.tt/help/zendesk-integration).",
     "parameters": {
       "dust_api_key": {
         "label": "Dust API Key",
-        "helpText": "Enter your Dust API key"
+        "helpText": "Enter your Dust API key. This is required for authentication and accessing your Dust workspace."
       },
       "dust_workspace_id": {
         "label": "Dust Workspace ID",
-        "helpText": "Enter your Dust Workspace ID"
+        "helpText": "Enter your Dust Workspace ID. This identifies the specific Dust workspace to connect with your Zendesk account."
+      },
+      "default_assistant_ids": {
+        "label": "Default Assistant IDs",
+        "helpText": "Optionally enter comma-separated Dust assistant IDs to limit which assistants are available in the app. Leave blank to show all assistants in your workspace."
       }
     }
   }
