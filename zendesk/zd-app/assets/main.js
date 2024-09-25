@@ -31,8 +31,6 @@ function convertMarkdownToHtml(markdown) {
       ? "{{setting.default_assistant_ids}}"
       : metadata.settings.default_assistant_ids;
 
-    console.log("Default assistant IDs:", defaultAssistantIds);
-
     if (defaultAssistantIds) {
       const assistantIds = defaultAssistantIds
         .split(",")
@@ -47,7 +45,6 @@ function convertMarkdownToHtml(markdown) {
     }
 
     hideLoadingSpinner();
-    toggleInputVisibility();
   } catch (error) {
     hideLoadingSpinner();
     showErrorMessage(
@@ -83,12 +80,6 @@ function convertMarkdownToHtml(markdown) {
     } catch (error) {
       console.error("Error getting ticket data:", error);
     }
-  }
-
-  function toggleInputVisibility() {
-    const selectElement = document.getElementById("assistantSelect");
-    const inputWrapper = document.getElementById("inputWrapper");
-    inputWrapper.style.display = selectElement.value ? "block" : "none";
   }
 
   async function checkUserValidity(dustWorkspaceId, dustApiKey, userEmail) {
@@ -170,6 +161,13 @@ function convertMarkdownToHtml(markdown) {
       }
 
       const selectElement = document.getElementById("assistantSelect");
+      const selectWrapper = document.getElementById("assistantSelectWrapper");
+      const inputWrapper = document.getElementById("inputWrapper");
+
+      // Clear existing options
+      selectElement.innerHTML = "";
+
+      // Always add options and show the select element if there are assistants
       assistants.forEach((assistant) => {
         if (assistant && assistant.sId && assistant.name) {
           const option = new Option(`@${assistant.name}`, assistant.sId);
@@ -184,8 +182,22 @@ function convertMarkdownToHtml(markdown) {
         })
         .on("change", (e) => {
           localStorage.setItem("selectedAssistant", e.target.value);
-          toggleInputVisibility();
+          localStorage.setItem(
+            "selectedAssistantName",
+            e.target.options[e.target.selectedIndex].text
+          );
         });
+
+      // Always show the select wrapper
+      selectWrapper.style.display = "block";
+
+      // If there's only one assistant, select it by default
+      if (assistants.length === 1) {
+        $(selectElement).val(assistants[0].sId).trigger("change");
+      }
+
+      // Always show the input wrapper
+      inputWrapper.style.display = "block";
     } else {
       throw new Error("Unexpected API response format");
     }
@@ -211,13 +223,16 @@ function convertMarkdownToHtml(markdown) {
     const savedAssistant = localStorage.getItem("selectedAssistant");
     if (savedAssistant) {
       const selectElement = document.getElementById("assistantSelect");
-      $(selectElement).val(savedAssistant).trigger("change");
+      if (selectElement.style.display !== "none") {
+        $(selectElement).val(savedAssistant).trigger("change");
+      }
     }
   }
 
   async function sendTicketToDust(ticket) {
     const dustResponse = document.getElementById("dustResponse");
     const userInput = document.getElementById("userInput");
+    let uniqueId;
 
     try {
       const metadata = await client.metadata();
@@ -230,10 +245,25 @@ function convertMarkdownToHtml(markdown) {
       const dustApiUrl = `https://dust.tt/api/v1/w/${dustWorkspaceId}/assistant/conversations`;
       const authorization = `Bearer ${dustApiKey}`;
 
+      let selectedAssistantId, selectedAssistantName;
       const selectElement = document.getElementById("assistantSelect");
-      const selectedAssistantId = selectElement.value;
-      const selectedAssistantName =
-        selectElement.options[selectElement.selectedIndex].text;
+
+      if (selectElement.style.display === "none") {
+        // If select is hidden, use the stored single assistant ID and name
+        selectedAssistantId = localStorage.getItem("selectedAssistant");
+        selectedAssistantName = localStorage.getItem("selectedAssistantName");
+      } else {
+        selectedAssistantId = selectElement.value;
+        selectedAssistantName =
+          selectElement.options[selectElement.selectedIndex].text;
+      }
+
+      // Check if we have a valid assistant selected
+      if (!selectedAssistantId || !selectedAssistantName) {
+        throw new Error(
+          "No assistant selected. Please select an assistant before sending a message."
+        );
+      }
 
       const userInputValue = userInput.value;
 
@@ -242,7 +272,7 @@ function convertMarkdownToHtml(markdown) {
 
       const data = await client.get("ticket");
 
-      const uniqueId = generateUniqueId();
+      uniqueId = generateUniqueId();
 
       const ticketInfo = {
         id: ticket.id || "Unknown",
@@ -279,19 +309,19 @@ function convertMarkdownToHtml(markdown) {
 
       // Append the user message to the div
       dustResponse.innerHTML += `
-        <div class="user-message" id="user-${uniqueId}">
-          <strong>${userFullName}:</strong>
-          <pre>${userInputValue}</pre>
-        </div>
-      `;
+      <div class="user-message" id="user-${uniqueId}">
+        <strong>${userFullName}:</strong>
+        <pre>${userInputValue}</pre>
+      </div>
+    `;
 
       // Add spinner below user message with the selected assistant's name
       dustResponse.innerHTML += `
-        <div id="${"assistant-" + uniqueId}" class="assistant-message">
-          <h4>${selectedAssistantName}:</h4>
-          <div class="spinner"></div>
-        </div>
-      `;
+      <div id="${"assistant-" + uniqueId}" class="assistant-message">
+        <h4>${selectedAssistantName}:</h4>
+        <div class="spinner"></div>
+      </div>
+    `;
 
       // Scroll to the bottom of the dustResponse div
       dustResponse.scrollTop = dustResponse.scrollHeight;
@@ -336,27 +366,27 @@ function convertMarkdownToHtml(markdown) {
 
       const previousMessages = getPreviousMessages();
       const ticketSummary = `
-      ### TICKET SUMMARY                
-      Zendesk Ticket #${ticketInfo.id}
-      Subject: ${ticketInfo.subject}
-      Customer Name: ${ticketInfo.customerName}
-      Customer Email: ${ticketInfo.customerEmail}
-      Status: ${ticketInfo.status}
-      Priority: ${ticketInfo.priority}
-      Type: ${ticketInfo.type}
-      Tags: ${ticketInfo.tags}
-      Created At: ${ticketInfo.createdAt}
-      Updated At: ${ticketInfo.updatedAt}
-      Assignee: ${ticketInfo.assignee} (${ticketInfo.assignee_email})
-      Group: ${ticketInfo.group}
-      
-      Conversation History:
-      ${formattedComments}
-      ### END TICKET SUMMARY
-      
-      ### CURRENT CONVERSATION
-      ${previousMessages}
-      `;
+    ### TICKET SUMMARY                
+    Zendesk Ticket #${ticketInfo.id}
+    Subject: ${ticketInfo.subject}
+    Customer Name: ${ticketInfo.customerName}
+    Customer Email: ${ticketInfo.customerEmail}
+    Status: ${ticketInfo.status}
+    Priority: ${ticketInfo.priority}
+    Type: ${ticketInfo.type}
+    Tags: ${ticketInfo.tags}
+    Created At: ${ticketInfo.createdAt}
+    Updated At: ${ticketInfo.updatedAt}
+    Assignee: ${ticketInfo.assignee} (${ticketInfo.assignee_email})
+    Group: ${ticketInfo.group}
+    
+    Conversation History:
+    ${formattedComments}
+    ### END TICKET SUMMARY
+    
+    ### CURRENT CONVERSATION
+    ${previousMessages}
+    `;
 
       const payload = {
         message: {
@@ -404,10 +434,10 @@ function convertMarkdownToHtml(markdown) {
       if (assistantMessageElement) {
         const htmlAnswer = convertMarkdownToHtml(answerMessage);
         assistantMessageElement.innerHTML = `
-          <h4>@${answerAgent}:</h4>
-          <pre class="markdown-content">${htmlAnswer}</pre>
-          <button class="use-button" onclick="useAnswer(this)">Use answer</button>
-        `;
+        <h4>@${answerAgent}:</h4>
+        <pre class="markdown-content">${htmlAnswer}</pre>
+        <button class="use-button" onclick="useAnswer(this)">Use answer</button>
+      `;
       }
 
       // Scroll to the bottom of the dustResponse div
@@ -423,9 +453,11 @@ function convertMarkdownToHtml(markdown) {
       );
       if (assistantMessageElement) {
         assistantMessageElement.innerHTML = `
-          <h4>Error:</h4>
-          <pre>Error sending ticket to Dust. Please try again.</pre>
-        `;
+        <h4>Error:</h4>
+        <pre>${
+          error.message || "Error sending ticket to Dust. Please try again."
+        }</pre>
+      `;
       }
 
       // Scroll to the bottom of the dustResponse div
@@ -433,10 +465,10 @@ function convertMarkdownToHtml(markdown) {
     } finally {
       userInput.disabled = false; // Re-enable the textarea
       sendToDustButton.innerHTML = `
-        <svg viewBox="0 0 24 24">
-          <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
-        </svg>
-      `;
+      <svg viewBox="0 0 24 24">
+        <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
+      </svg>
+    `;
     }
   }
 
