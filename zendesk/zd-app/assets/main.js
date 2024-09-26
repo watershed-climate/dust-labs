@@ -18,7 +18,7 @@ function convertMarkdownToHtml(markdown) {
 
 (async function () {
   const client = ZAFClient.init();
-  const isProd = false;
+  const isProd = true;
   window.client = client;
   window.useAnswer = useAnswer;
 
