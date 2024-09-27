@@ -150,7 +150,7 @@ function convertMarkdownToHtml(markdown) {
     ) {
       let assistants = response.agentConfigurations;
 
-      if (allowedAssistantIds) {
+      if (allowedAssistantIds && allowedAssistantIds.length > 0) {
         assistants = assistants.filter((assistant) =>
           allowedAssistantIds.includes(assistant.sId)
         );

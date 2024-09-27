@@ -10,12 +10,13 @@
     {
       "name": "dust_api_key",
       "type": "text",
-      "secure": true
+      "secure": true,
+      "required": true
     },
     {
       "name": "dust_workspace_id",
       "type": "text",
-      "secure": true
+      "required": true
     },
     {
       "name": "default_assistant_ids",
@@ -30,7 +31,7 @@
       "ticket_sidebar": "assets/iframe.html"
     }
   },
-  "version": "1.0",
+  "version": "1.0.1",
   "frameworkVersion": "2.0",
   "screenshots": [
     {
