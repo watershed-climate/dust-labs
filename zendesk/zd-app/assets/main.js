@@ -27,9 +27,7 @@ function convertMarkdownToHtml(markdown) {
   try {
     await client.on("app.registered");
     const metadata = await client.metadata();
-    defaultAssistantIds = isProd
-      ? "{{setting.default_assistant_ids}}"
-      : `${metadata.settings.default_assistant_ids || ""}`;
+    defaultAssistantIds = metadata.settings.default_assistant_ids;
 
     if (
       defaultAssistantIds &&
@@ -115,10 +113,10 @@ function convertMarkdownToHtml(markdown) {
     const metadata = await client.metadata();
     const dustApiKey = isProd
       ? "{{setting.dust_api_key}}"
-      : metadata.settings.dust_api_key;
+      : `${metadata.settings.dust_api_key}`;
     const dustWorkspaceId = isProd
       ? "{{setting.dust_workspace_id}}"
-      : metadata.settings.dust_workspace_id;
+      : `${metadata.settings.dust_workspace_id}`;
 
     const userData = await client.get("currentUser");
     const userEmail = userData.currentUser.email;
@@ -242,10 +240,10 @@ function convertMarkdownToHtml(markdown) {
       const metadata = await client.metadata();
       const dustApiKey = isProd
         ? "{{setting.dust_api_key}}"
-        : metadata.settings.dust_api_key;
+        : `${metadata.settings.dust_api_key}`;
       const dustWorkspaceId = isProd
         ? "{{setting.dust_workspace_id}}"
-        : metadata.settings.dust_workspace_id;
+        : `${metadata.settings.dust_workspace_id}`;
       const dustApiUrl = `https://dust.tt/api/v1/w/${dustWorkspaceId}/assistant/conversations`;
       const authorization = `Bearer ${dustApiKey}`;
 

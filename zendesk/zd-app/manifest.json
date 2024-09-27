@@ -16,6 +16,7 @@
     {
       "name": "dust_workspace_id",
       "type": "text",
+      "secure": true,
       "required": true
     },
     {
