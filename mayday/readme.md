@@ -7,7 +7,7 @@ This script imports knowledge base articles from Mayday into a Dust datasource. 
 1. Clone this repository:
 
    ```bash
-   git clone https://github.com/your-username/mayday-to-dust-import.git
+   git clone git@github.com:dust-tt/dust-labs.git
    cd mayday-to-dust-import
    ```
 
