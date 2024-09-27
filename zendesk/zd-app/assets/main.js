@@ -29,9 +29,13 @@ function convertMarkdownToHtml(markdown) {
     const metadata = await client.metadata();
     defaultAssistantIds = isProd
       ? "{{setting.default_assistant_ids}}"
-      : metadata.settings.default_assistant_ids;
+      : `${metadata.settings.default_assistant_ids || ""}`;
 
-    if (defaultAssistantIds) {
+    if (
+      defaultAssistantIds &&
+      defaultAssistantIds.length > 0 &&
+      defaultAssistantIds != "undefined"
+    ) {
       const assistantIds = defaultAssistantIds
         .split(",")
         .map((id) => id.trim());
