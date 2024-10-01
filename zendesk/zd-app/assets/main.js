@@ -436,10 +436,11 @@ function convertMarkdownToHtml(markdown) {
       if (assistantMessageElement) {
         const htmlAnswer = convertMarkdownToHtml(answerMessage);
         assistantMessageElement.innerHTML = `
-        <h4>@${answerAgent}:</h4>
-        <pre class="markdown-content">${htmlAnswer}</pre>
-        <button class="use-button" onclick="useAnswer(this)">Use answer</button>
-      `;
+          <h4>@${answerAgent}:</h4>
+          <pre class="markdown-content">${htmlAnswer}</pre>
+          <button class="use-button public-reply" onclick="useAnswer(this, 'public')">Use as public reply</button>
+          <button class="use-button private-note" onclick="useAnswer(this, 'private')">Use as internal note</button>
+        `;
       }
 
       // Scroll to the bottom of the dustResponse div
@@ -474,13 +475,22 @@ function convertMarkdownToHtml(markdown) {
     }
   }
 
-  async function useAnswer(button) {
-    const answerContent = button.previousElementSibling.innerHTML;
-    const formattedAnswer = answerContent.replace(/\n/g, "<br>");
+  async function useAnswer(button, type) {
     try {
+      const assistantMessageDiv = button.closest(".assistant-message");
+      const answerContent =
+        assistantMessageDiv.querySelector(".markdown-content").innerHTML;
+      const formattedAnswer = answerContent.replace(/\n/g, "<br>");
+
+      if (type === "private") {
+        await client.set("ticket.comment.type", "internalNote");
+      } else {
+        await client.set("ticket.comment.type", "publicReply");
+      }
+
       await client.invoke("ticket.editor.insert", formattedAnswer);
     } catch (error) {
-      console.error("Error inserting answer into ticket editor:", error);
+      console.error(`Error inserting answer as ${type} note:`, error);
     }
   }
 
