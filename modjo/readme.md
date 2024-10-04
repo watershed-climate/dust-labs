@@ -8,7 +8,7 @@ This script imports Modjo call transcripts into a Dust datasource. It fetches tr
 
    ```
    git clone git@github.com:dust-tt/dust-labs.git
-   cd dust-labs
+   cd dust-labs/modjo
    ```
 
 2. Install dependencies:
