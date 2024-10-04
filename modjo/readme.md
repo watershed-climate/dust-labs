@@ -5,33 +5,35 @@ This script imports Modjo call transcripts into a Dust datasource. It fetches tr
 ## Installation
 
 1. Clone the repository:
-   \```
+
+   ```
    git clone git@github.com:dust-tt/dust-labs.git
    cd dust-labs
-   \```
+   ```
 
 2. Install dependencies:
-   \```
+
+   ```
    npm install
-   \```
+   ```
 
 3. Create a `.env` file in the root directory with the following content:
-   \```
+   ```
    MODJO_BASE_URL=https://api.modjo.ai
    MODJO_API_KEY=your_modjo_api_key
    DUST_API_KEY=your_dust_api_key
    DUST_WORKSPACE_ID=your_dust_workspace_id
    DUST_DATASOURCE_ID=your_dust_datasource_id
-   \```
+   ```
    Replace the placeholder values with your actual API keys and IDs.
 
 ## Usage
 
 To run the script:
 
-\```
+```
 npm run transcripts
-\```
+```
 
 This command executes the `modjo-transcripts-to-dust.ts` file using `ts-node`.
 
@@ -84,9 +86,9 @@ The script includes error handling for API requests and logs errors to the conso
 
 To compile the TypeScript code to JavaScript:
 
-\```
+```
 npm run build
-\```
+```
 
 This will create a `dist` directory with the compiled JavaScript files.
 
