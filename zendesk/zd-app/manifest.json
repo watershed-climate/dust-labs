@@ -21,7 +21,13 @@
     },
     {
       "name": "default_assistant_ids",
-      "type": "text",
+      "type": "multiline",
+      "required": false
+    },
+    {
+      "name": "hide_customer_information",
+      "type": "checkbox",
+      "default": false,
       "required": false
     }
   ],

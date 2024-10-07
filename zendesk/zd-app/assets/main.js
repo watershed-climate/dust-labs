@@ -35,8 +35,10 @@ function convertMarkdownToHtml(markdown) {
       defaultAssistantIds != "undefined"
     ) {
       const assistantIds = defaultAssistantIds
-        .split(",")
-        .map((id) => id.trim());
+        .split(/[,\s]+/) // Split by comma, space, or newline
+        .filter((id) => id.trim() !== "") // Remove empty entries
+        .map((id) => id.trim()); // Trim each ID
+
       await loadAssistants(assistantIds);
       showAssistantSelect();
       restoreSelectedAssistant();
@@ -244,6 +246,8 @@ function convertMarkdownToHtml(markdown) {
       const dustWorkspaceId = isProd
         ? "{{setting.dust_workspace_id}}"
         : `${metadata.settings.dust_workspace_id}`;
+      const hideCustomerInformation =
+        metadata.settings.hide_customer_information;
       const dustApiUrl = `https://dust.tt/api/v1/w/${dustWorkspaceId}/assistant/conversations`;
       const authorization = `Bearer ${dustApiKey}`;
 
@@ -300,11 +304,16 @@ function convertMarkdownToHtml(markdown) {
         organization:
           (ticket.organization && ticket.organization.name) ||
           "No organization",
-        customerName: "Unknown",
-        customerEmail: "Unknown",
+        customerName: hideCustomerInformation ? "[Redacted]" : "Unknown",
+        customerEmail: hideCustomerInformation ? "[Redacted]" : "Unknown",
       };
 
-      if (data && data.ticket && data.ticket.requester) {
+      if (
+        data &&
+        data.ticket &&
+        data.ticket.requester &&
+        !hideCustomerInformation
+      ) {
         ticketInfo.customerName = data.ticket.requester.name || "Unknown";
         ticketInfo.customerEmail = data.ticket.requester.email || "Unknown";
       }
@@ -362,7 +371,13 @@ function convertMarkdownToHtml(markdown) {
               : "Agent"
             : "Unknown";
 
-          return `${authorName} (${role}): ${comment.body}`;
+          // Redact customer name in comments if hideCustomerInformation is true
+          const displayName =
+            hideCustomerInformation && role === "Customer"
+              ? "[Customer]"
+              : authorName;
+
+          return `${displayName} (${role}): ${comment.body}`;
         })
         .join("\n");
 

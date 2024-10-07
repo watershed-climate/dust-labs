@@ -15,7 +15,11 @@
       },
       "default_assistant_ids": {
         "label": "Restrict Available Assistants",
-        "helpText": "Optionally enter comma-separated Dust Assistant IDs to limit which assistants are available in the app. Leave blank to show all assistants in your workspace."
+        "helpText": "Optionally add Dust Assistant IDs (one per line) to limit which assistants are available in the app. Leave blank to show all assistants in your workspace."
+      },
+      "hide_customer_information": {
+        "label": "Hide Customer Information (PII)",
+        "helpText": "Enable this option to prevent customer names and email addresses from being sent to Dust during API calls, helping to protect personally identifiable information (PII). This does not impact the data written in the tickets, only the metadata."
       }
     }
   }
