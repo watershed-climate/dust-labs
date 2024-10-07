@@ -14,6 +14,7 @@ const CLICKUP_DOC_ID = process.env.CLICKUP_DOC_ID;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
+const DUST_VAULT_ID = process.env.DUST_VAULT_ID;
 
 const missingEnvVars = [
   ['CLICKUP_API_KEY', CLICKUP_API_KEY],
@@ -21,7 +22,8 @@ const missingEnvVars = [
   ['CLICKUP_DOC_ID', CLICKUP_DOC_ID],
   ['DUST_API_KEY', DUST_API_KEY],
   ['DUST_WORKSPACE_ID', DUST_WORKSPACE_ID],
-  ['DUST_DATASOURCE_ID', DUST_DATASOURCE_ID]
+  ['DUST_DATASOURCE_ID', DUST_DATASOURCE_ID],
+  ['DUST_VAULT_ID', DUST_VAULT_ID]
 ].filter(([name, value]) => !value).map(([name]) => name);
 
 if (missingEnvVars.length > 0) {
@@ -128,7 +130,7 @@ ${page.content}
 
   try {
     await limitedDustApiPost(
-      `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
+      `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
       {
         text: content,
         source_url: `https://app.clickup.com/${CLICKUP_WORKSPACE_ID}/v/dc/${CLICKUP_DOC_ID}/${page.id}`
