@@ -8,16 +8,18 @@ const MODJO_BASE_URL = process.env.MODJO_BASE_URL || "https://api.modjo.ai";
 const MODJO_API_KEY = process.env.MODJO_API_KEY;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
+const DUST_VAULT_ID = process.env.DUST_VAULT_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 
 if (
   !MODJO_API_KEY ||
   !DUST_API_KEY ||
   !DUST_WORKSPACE_ID ||
+  !DUST_VAULT_ID ||
   !DUST_DATASOURCE_ID
 ) {
   throw new Error(
-    "Please provide values for MODJO_API_KEY, DUST_API_KEY, DUST_WORKSPACE_ID, and DUST_DATASOURCE_ID in .env file."
+    "Please provide values for MODJO_API_KEY, DUST_API_KEY, DUST_WORKSPACE_ID, DUST_VAULT_ID, and DUST_DATASOURCE_ID in .env file."
   );
 }
 
@@ -173,7 +175,7 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
   try {
     await limiter.schedule(() =>
       dustApi.post(
-        `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
+        `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
         {
           text: content.trim(),
         }

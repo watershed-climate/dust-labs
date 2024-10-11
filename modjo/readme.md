@@ -23,6 +23,7 @@ This script imports Modjo call transcripts into a Dust datasource. It fetches tr
    MODJO_API_KEY=your_modjo_api_key
    DUST_API_KEY=your_dust_api_key
    DUST_WORKSPACE_ID=your_dust_workspace_id
+   DUST_VAULT_ID=your_dust_vault_id
    DUST_DATASOURCE_ID=your_dust_datasource_id
    ```
    Replace the placeholder values with your actual API keys and IDs.
