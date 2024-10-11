@@ -153,10 +153,8 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
   if (transcript.callCrmId) content += `CRM ID: ${transcript.callCrmId}\n`;
   if (transcript.relations.recording)
     content += `Recording URL: ${transcript.relations.recording.url}\n`;
-  if (transcript.relations.aiSummary)
-    content += `AI Summary: ${transcript.relations.aiSummary.content}\n`;
 
-  content += "\nSpeakers:\n";
+  content += "\n# Speakers\n";
   transcript.relations.speakers.forEach((speaker) => {
     content += `${speaker.speakerId}: ${speaker.name} (${speaker.type})`;
     if (speaker.email) content += ` - Email: ${speaker.email}`;
@@ -164,7 +162,10 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
     content += "\n";
   });
 
-  content += "\nTranscript:\n";
+  if (transcript.relations.aiSummary)
+    content += `\n# AI Summary\n${transcript.relations.aiSummary.content.trim()}\n`;
+
+  content += "\n# Transcript\n";
   transcript.relations.transcript.forEach((entry) => {
     const speaker = transcript.relations.speakers.find(
       (s) => s.speakerId === entry.speakerId
