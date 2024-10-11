@@ -89,6 +89,10 @@ async function getModjoTranscripts(): Promise<ModjoCallExport[]> {
   let page = 1;
   const perPage = 50;
 
+  console.log(
+    `Will retrieve all transcripts since: ${TRANSCRIPTS_SINCE}`
+  );
+
   do {
     try {
       const response: AxiosResponse<{
