@@ -84,6 +84,9 @@ interface ModjoCallExport {
       content: string;
       topics: { topicId: number; name: string }[];
     }[];
+    tags: {
+      name: string;
+    }[];
   };
 }
 
@@ -116,6 +119,7 @@ async function getModjoTranscripts(): Promise<ModjoCallExport[]> {
           highlights: true,
           transcript: true,
           speakers: true,
+          tags: true,
         },
       });
 
@@ -145,6 +149,7 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
   const documentId = `modjo-transcript-${transcript.callId}`;
 
   let content = `Call ID: ${transcript.callId}\n`;
+  content += `Tags: ${transcript.relations.tags.map(tag => `"${tag.name}"`).join(', ') }\n`;
   content += `Title: ${transcript.title}\n`;
   content += `Date: ${transcript.startDate}\n`;
   content += `Duration: ${transcript.duration} seconds\n`;
@@ -153,6 +158,7 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
   if (transcript.callCrmId) content += `CRM ID: ${transcript.callCrmId}\n`;
   if (transcript.relations.recording)
     content += `Recording URL: ${transcript.relations.recording.url}\n`;
+
 
   content += "\n# Speakers\n";
   transcript.relations.speakers.forEach((speaker) => {
