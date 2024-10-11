@@ -11,6 +11,7 @@ const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_VAULT_ID = process.env.DUST_VAULT_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 const INCLUDE_CONTACT_DETAILS = process.env.INCLUDE_CONTACT_DETAILS !== 'false';
+const INCLUDE_RECORDING_URL = process.env.INCLUDE_RECORDING_URL !== 'false';
 
 if (
   !MODJO_API_KEY ||
@@ -98,7 +99,8 @@ async function getModjoTranscripts(): Promise<ModjoCallExport[]> {
 
   console.log(
     `Will retrieve all transcripts since: ${TRANSCRIPTS_SINCE}\n` +
-    `Will include contact details: ${INCLUDE_CONTACT_DETAILS}`
+    `Will include contact details: ${INCLUDE_CONTACT_DETAILS}\n` +
+    `Will include recording URLs: ${INCLUDE_RECORDING_URL}`
   );
 
   do {
@@ -158,7 +160,7 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
   content += `Provider: ${transcript.provider}\n`;
   content += `Language: ${transcript.language}\n`;
   if (transcript.callCrmId) content += `CRM ID: ${transcript.callCrmId}\n`;
-  if (transcript.relations.recording)
+  if (INCLUDE_RECORDING_URL && transcript.relations.recording)
     content += `Recording URL: ${transcript.relations.recording.url}\n`;
 
 
