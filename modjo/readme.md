@@ -70,7 +70,7 @@ This command executes the `modjo-transcripts-to-dust.ts` file using `ts-node`.
 Each transcript is formatted as follows in the Dust datasource:
 
 1. Call metadata (ID, title, date, duration, etc.)
-2. Recording URL and AI summary (if available)
+2. Recording URL and highlights (if available)
 3. List of speakers with their details
 4. Full transcript with timestamps, speaker names, and topics
 

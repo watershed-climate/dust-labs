@@ -65,7 +65,7 @@ interface ModjoCallExport {
     recording: {
       url: string;
     };
-    aiSummary: {
+    highlights: {
       content: string;
     } | null;
     speakers: {
@@ -113,7 +113,7 @@ async function getModjoTranscripts(): Promise<ModjoCallExport[]> {
         },
         relations: {
           recording: true,
-          aiSummary: true,
+          highlights: true,
           transcript: true,
           speakers: true,
         },
@@ -162,8 +162,8 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
     content += "\n";
   });
 
-  if (transcript.relations.aiSummary)
-    content += `\n# AI Summary\n${transcript.relations.aiSummary.content.trim()}\n`;
+  if (transcript.relations.highlights)
+    content += `\n# Highlights\n${transcript.relations.highlights.content.trim()}\n`;
 
   content += "\n# Transcript\n";
   transcript.relations.transcript.forEach((entry) => {
