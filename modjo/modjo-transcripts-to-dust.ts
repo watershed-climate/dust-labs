@@ -24,7 +24,8 @@ if (
 }
 
 // Can be `null` if you want to fetch all transcripts
-const TRANSCRIPTS_SINCE = process.env.TRANSCRIPTS_SINCE === "null" ? null : (process.env.TRANSCRIPTS_SINCE || "2024-01-01");
+const YESTERDAY = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+const TRANSCRIPTS_SINCE = process.env.TRANSCRIPTS_SINCE === "null" ? null : (process.env.TRANSCRIPTS_SINCE || YESTERDAY);
 
 const modjoApi = axios.create({
   baseURL: MODJO_BASE_URL,
