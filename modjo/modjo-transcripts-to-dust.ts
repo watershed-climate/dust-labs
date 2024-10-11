@@ -65,7 +65,9 @@ interface ModjoCallExport {
     recording: {
       url: string;
     };
-    aiSummary: string | null;
+    aiSummary: {
+      content: string;
+    } | null;
     speakers: {
       contactId?: number;
       userId?: number;
@@ -152,7 +154,7 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
   if (transcript.relations.recording)
     content += `Recording URL: ${transcript.relations.recording.url}\n`;
   if (transcript.relations.aiSummary)
-    content += `AI Summary: ${transcript.relations.aiSummary}\n`;
+    content += `AI Summary: ${transcript.relations.aiSummary.content}\n`;
 
   content += "\nSpeakers:\n";
   transcript.relations.speakers.forEach((speaker) => {
