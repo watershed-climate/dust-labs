@@ -183,6 +183,7 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
         `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
         {
           text: content.trim(),
+          source_url: `https://app.modjo.ai/call-details/${transcript.callId}`,
         }
       )
     );
