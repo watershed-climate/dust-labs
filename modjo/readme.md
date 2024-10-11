@@ -27,6 +27,7 @@ This script imports Modjo call transcripts into a Dust datasource. It fetches tr
    DUST_DATASOURCE_ID=your_dust_datasource_id
 
    # TRANSCRIPTS_SINCE=YYYY-MM-DD # or "null" if you want to fetch all transcripts
+   # INCLUDE_CONTACT_DETAILS=true # or "false" to skip contact details
    ```
    Replace the placeholder values with your actual API keys and IDs.
 
@@ -43,6 +44,7 @@ This command executes the `modjo-transcripts-to-dust.ts` file using `ts-node`.
 ## Configuration
 
 - `TRANSCRIPTS_SINCE`: You can set this environment variable to a date string (e.g., "2024-01-01") to fetch transcripts from that date onwards. Set it to `null` to fetch all transcripts.
+- `INCLUDE_CONTACT_DETAILS`: Set this environment variable to `false` if you don't want to ingest contact details (ie: email and phone number) in Dust.
 
 ## What the Script Does
 

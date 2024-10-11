@@ -10,6 +10,7 @@ const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_VAULT_ID = process.env.DUST_VAULT_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
+const INCLUDE_CONTACT_DETAILS = process.env.INCLUDE_CONTACT_DETAILS !== 'false';
 
 if (
   !MODJO_API_KEY ||
@@ -96,7 +97,8 @@ async function getModjoTranscripts(): Promise<ModjoCallExport[]> {
   const perPage = 50;
 
   console.log(
-    `Will retrieve all transcripts since: ${TRANSCRIPTS_SINCE}`
+    `Will retrieve all transcripts since: ${TRANSCRIPTS_SINCE}\n` +
+    `Will include contact details: ${INCLUDE_CONTACT_DETAILS}`
   );
 
   do {
@@ -163,8 +165,10 @@ async function upsertToDustDatasource(transcript: ModjoCallExport) {
   content += "\n# Speakers\n";
   transcript.relations.speakers.forEach((speaker) => {
     content += `${speaker.speakerId}: ${speaker.name} (${speaker.type})`;
-    if (speaker.email) content += ` - Email: ${speaker.email}`;
-    if (speaker.phoneNumber) content += ` - Phone: ${speaker.phoneNumber}`;
+    if (INCLUDE_CONTACT_DETAILS) {
+      if (speaker.email) content += ` - Email: ${speaker.email}`;
+      if (speaker.phoneNumber) content += ` - Phone: ${speaker.phoneNumber}`;
+    }
     content += "\n";
   });
 
