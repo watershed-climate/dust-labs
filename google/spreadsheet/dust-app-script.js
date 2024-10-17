@@ -1,8 +1,8 @@
 // Google Sheets plugin for interacting with the Dust API.
 // Ensure you replace the placeholder values with your actual Dust API credentials.
 
-const WORKSPACE_ID = "<workspace_id>"; // Your workspace ID from Dust
-const API_KEY = "<api_key>"; // Your API key from Dust
+const WORKSPACE_ID = "DUST_WORKSPACE_ID"; // Your workspace ID from Dust
+const API_KEY = "DUST_API_KEY"; // Your API key from Dust
 
 // Base URL for the Dust API.
 const BASE_URL = `https://dust.tt/api/v1/w/${WORKSPACE_ID}`;
@@ -21,9 +21,19 @@ const ERROR_PREFIX = "Error:";
  * @return {string} The assistant's response or an error message.
  * @customfunction
  */
-function DUST(assistantName = "SecuritySam", prompt = "answer", input = "are you soc2") {
+function DUST(
+  assistantName = "SecuritySam",
+  prompt = "answer",
+  input = "are you soc2"
+) {
+  let concatenatedInput;
+
   if (Array.isArray(input)) {
-    return wrapWithError("This function can only be run on a single cell.");
+    // If input is an array (multiple columns selected), concatenate the values
+    concatenatedInput = input.map((row) => row.join(" ")).join("\n");
+  } else {
+    // If input is a single cell, use it as is
+    concatenatedInput = input;
   }
 
   try {
@@ -32,7 +42,11 @@ function DUST(assistantName = "SecuritySam", prompt = "answer", input = "are you
       return wrapWithError(`Assistant "${assistantName}" not found.`);
     }
 
-    const content = createConversationAndGetContent(assistantId, prompt, input);
+    const content = createConversationAndGetContent(
+      assistantId,
+      prompt,
+      concatenatedInput
+    );
     if (!content) {
       return wrapWithError(
         "Failed to create conversation or retrieve response."
@@ -55,7 +69,8 @@ function DUST(assistantName = "SecuritySam", prompt = "answer", input = "are you
  * @return {string|null} The assistant ID if found, null otherwise.
  */
 function findAssistant(assistantName) {
-  const url = `${BASE_URL}/assistant/agent_configurations/search?q=`+assistantName;
+  const url =
+    `${BASE_URL}/assistant/agent_configurations/search?q=` + assistantName;
   const options = {
     method: "get",
     headers: {
@@ -85,7 +100,7 @@ function findAssistant(assistantName) {
       return null;
     }
 
-    const assistant = result.agentConfigurations[0]
+    const assistant = result.agentConfigurations[0];
     if (!assistant) {
       console.log(`Assistant "${assistantName}" not found.`);
       return null;
