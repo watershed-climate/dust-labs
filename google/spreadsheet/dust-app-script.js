@@ -21,18 +21,42 @@ const ERROR_PREFIX = "Error:";
  * @return {string} The assistant's response or an error message.
  * @customfunction
  */
+/**
+ * Interact with a Dust assistant.
+ *
+ * @param {string} assistantName - The name of the Dust assistant to interact with.
+ * @param {string} prompt - The user's prompt or question.
+ * @param {string|Array<Array<string>>} input - The single cell value or range of cells to use.
+ * @return {string} The assistant's response or an error message.
+ * @customfunction
+ */
 function DUST(
   assistantName = "SecuritySam",
   prompt = "answer",
   input = "are you soc2"
 ) {
+  // Create a cache key based on the cell location
+  const cacheKey = createCacheKey();
+
+  // Try to get the cached result and metadata
+  const cache = CacheService.getDocumentCache();
+  const cachedData = cache.get(cacheKey);
+
+  if (cachedData != null) {
+    const { result, timestamp, lastArgs } = JSON.parse(cachedData);
+    const currentArgs = JSON.stringify({ assistantName, prompt, input });
+
+    // If the arguments haven't changed, return the cached result
+    if (lastArgs === currentArgs) {
+      return result;
+    }
+  }
+
   let concatenatedInput;
 
   if (Array.isArray(input)) {
-    // If input is an array (multiple columns selected), concatenate the values
     concatenatedInput = input.map((row) => row.join(" ")).join("\n");
   } else {
-    // If input is a single cell, use it as is
     concatenatedInput = input;
   }
 
@@ -53,6 +77,14 @@ function DUST(
       );
     }
 
+    // Store the result, timestamp, and current arguments in cache
+    const cacheData = JSON.stringify({
+      result: content,
+      timestamp: new Date().getTime(),
+      lastArgs: JSON.stringify({ assistantName, prompt, input }),
+    });
+    cache.put(cacheKey, cacheData, 21600); // Cache for 6 hours (21600 seconds)
+
     return content;
   } catch (error) {
     console.error("Error in DUST function:", error);
@@ -60,6 +92,17 @@ function DUST(
       "An unexpected error occurred. Please check the logs."
     );
   }
+}
+
+/**
+ * Create a unique cache key based on the cell location.
+ *
+ * @return {string} A unique cache key.
+ */
+function createCacheKey() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const cell = sheet.getActiveCell();
+  return `DUST_${sheet.getName()}_${cell.getA1Notation()}`;
 }
 
 /**
