@@ -3,9 +3,10 @@
 This script is a multi-threaded Node.js application designed to import Salesforce account data into Dust datasources. It fetches recently updated accounts from Salesforce, including related contacts, opportunities, and cases, and then uploads this information to a specified Dust datasource.
 
 ## Usage example
+
 ![Example usage of the script](https://i.ibb.co/rtfTyjH/Screenshot-2024-08-20-at-12-00-24.png)
 
-Example of account summary added to the Dust datasource: 
+Example of account summary added to the Dust datasource:
 
 ```
 Account Summary for Grand Hotels & Resorts Ltd dd
@@ -77,6 +78,7 @@ Chain of hotels and resorts across the US, UK, Eastern Europe, Japan, and SE Asi
 - Includes related Salesforce objects (Contacts, Opportunities, Cases)
 - Supports both username-password and OAuth 2.0 authentication with Salesforce
 - Upserts data to Dust datasources
+- Passing the env variable `IMPORT_AS_TABLE` will also save accounts in a structured tables in Dust.
 
 ## Prerequisites
 
@@ -88,12 +90,14 @@ Chain of hotels and resorts across the US, UK, Eastern Europe, Japan, and SE Asi
 ## Installation
 
 1. Clone the repository:
+
    ```
    git clone https://github.com/your-username/salesforce-to-dust-import.git
    cd salesforce-to-dust-import
    ```
 
 2. Install dependencies:
+
    ```
    npm install
    ```
@@ -109,6 +113,7 @@ Chain of hotels and resorts across the US, UK, Eastern Europe, Japan, and SE Asi
    SF_CLIENT_SECRET=your_salesforce_client_secret
    DUST_API_KEY=your_dust_api_key
    DUST_WORKSPACE_ID=your_dust_workspace_id
+   DUST_VAULT_ID=your_dust_vault_id
    DUST_DATASOURCE_ID_SALESFORCE=your_dust_datasource_id
    ```
 
@@ -143,6 +148,7 @@ You can adjust the following variables in the script:
 ## Error Handling
 
 The script includes error handling for various scenarios:
+
 - Connection errors with Salesforce or Dust API
 - Query execution errors
 - Data processing errors
