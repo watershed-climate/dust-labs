@@ -8,7 +8,6 @@ dotenv.config();
 // source
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
-const DUST_USAGE_SINCE_DATE = process.env.DUST_USAGE_SINCE_DATE; // Format: YYYY-MM
 
 // destination
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
@@ -17,7 +16,6 @@ const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 const missingEnvVars = [
   ['DUST_API_KEY', DUST_API_KEY],
   ['DUST_WORKSPACE_ID', DUST_WORKSPACE_ID],
-  ['DUST_USAGE_SINCE_DATE', DUST_USAGE_SINCE_DATE],
   ['NOTION_API_KEY', NOTION_API_KEY],
   ['NOTION_DATABASE_ID', NOTION_DATABASE_ID],
 ].filter(([name, value]) => !value).map(([name]) => name);
@@ -25,6 +23,10 @@ const missingEnvVars = [
 if (missingEnvVars.length > 0) {
   throw new Error(`Please provide values for the following environment variables in the .env file: ${missingEnvVars.join(', ')}`);
 }
+
+// Last 30 (rolling) days
+const usage_start = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const usage_end = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
 interface DustAssistant {
   id: number;
@@ -82,30 +84,11 @@ async function getDustAssistants(): Promise<DustAssistant[]> {
 
     // Fetch assistants' usage data
     try {
+      console.log(`Fetching assistants' usage data between ${usage_start} and ${usage_end}`);
       const usageResponse = await dustApi.get(`/w/${DUST_WORKSPACE_ID}/workspace-usage`, {
         params: {
-          // Note:
-          // Ideally, what would make more sense would be to
-          // have the data for the last (rolling) 30 days, just
-          // like in the Dust.tt web portal.
-          //
-          // However, that info is not available via the public APIs.
-          // The `workspace-usage` endpoint only allows for monthly granularity.
-          //
-          // It would be confusing for the consumer of the data if we the
-          // period of time for which the usage data is reported on would
-          // be changed between different runs of this script.
-          //
-          // Also, using the data for the previous, or the current month
-          // would be misleading/non representative of the actual usage
-          // of the assistants, depending on which day of the month the script
-          // is run.
-          //
-          // The trade-off we choose is to use a random DUST_USAGE_SINCE_DATE
-          // and use the current month as the end date.
-          // In mid-term, I hope Dust would allow to pull the data for the last 30 days.
-          start: DUST_USAGE_SINCE_DATE,
-          end: new Date().toISOString().slice(0, 7), // Current month in YYYY-MM format
+          start: usage_start,
+          end: usage_end,
           mode: 'range',
           table: 'assistants'
         }
@@ -173,12 +156,12 @@ async function configureNotionDatabase() {
         ...(existingDatabaseConfig.properties.Tags ? { Tags: null } : {}), // Remove the 'Tags' property if it exists in the current configuration
         ...(existingDatabaseConfig.properties['dust.authors'] ? {} : { 'dust.authors': { multi_select: {} } }),
         'dust.description': { rich_text: {} },
-        'dust.distinctUsersReached': { number: {}, description: `Number of distinct users, since ${DUST_USAGE_SINCE_DATE}.` },
+        'dust.distinctUsersReached': { number: {}, description: `Number of distinct users over the last 30 days.` },
         'dust.id': { rich_text: {} },
         'dust.instructions': { rich_text: {} },
         'dust.lastVersionCreatedAt': { date: {}, description: "Last time the assistant configuration has been updated." },
         'dust.maxStepsPerRun': { number: {} },
-        'dust.messages': { number: {}, description: `Number of times the assistant was used since ${DUST_USAGE_SINCE_DATE}.` },
+        'dust.messages': { number: {}, description: `Number of times the assistant was used over the last 30 days.` },
         ...(existingDatabaseConfig.properties['dust.modelId'] ? {} : { 'dust.modelId': { select: {} } }),
         ...(existingDatabaseConfig.properties['dust.modelProviderId'] ? {} : { 'dust.modelProviderId': { select: {} } }),
         'dust.modelTemperature': { number: {} },

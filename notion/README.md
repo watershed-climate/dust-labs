@@ -45,8 +45,9 @@ npm run sync-list-of-assistants-to-notion-database
 ## How It Works
 
 1. The script fetches all the assistants in a given Dust workspace.
-2. It configures the Notion database with some predefined properties (see [Notes](#notes) bellow)
-3. It upserts each assistant to the Notion database, using the `dust.name` property as the unique identifier.
+2. It fetches 30-day usage data for each assistant, including message count and user reach, integrating this with assistant information for a comprehensive overview.
+3. It configures the Notion database with some predefined properties (see [Notes](#notes) bellow)
+4. It upserts each assistant to the Notion database, using the `dust.name` property as the unique identifier.
 
 ## Dependencies
 
