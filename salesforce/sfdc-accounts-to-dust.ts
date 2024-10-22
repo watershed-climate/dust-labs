@@ -13,6 +13,7 @@ const SF_CLIENT_ID = process.env.SF_CLIENT_ID;
 const SF_CLIENT_SECRET = process.env.SF_CLIENT_SECRET;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
+const DUST_VAULT_ID = process.env.DUST_VAULT_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 const UPDATED_SINCE = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
@@ -317,7 +318,7 @@ async function upsertDocumentToDustDatasource(account: Account) {
   `.trim();
   try {
     await rateLimitedDustApiPost(
-      `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
+      `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
       {
         source_url: `${SF_LOGIN_URL}/${account.Id}`,
         text: content,
@@ -326,7 +327,7 @@ async function upsertDocumentToDustDatasource(account: Account) {
 
     if (IMPORT_AS_TABLE) {
       await rateLimitedDustApiPost(
-        `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/table/${documentId}`,
+        `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/table/${documentId}`,
         {
           id: DUST_TABLE_ID,
 
@@ -363,7 +364,7 @@ async function upsertTableRowsToDustDatasource(accounts: Account[]) {
   }));
 
   await rateLimitedDustApiPost(
-    `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/tables/${DUST_TABLE_ID}`,
+    `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/tables/${DUST_TABLE_ID}`,
     {
       rows,
       truncate: false,
@@ -392,12 +393,12 @@ async function main() {
     if (IMPORT_AS_TABLE) {
       // Create the table if it does not exist.
       const existingTable = await dustApi.get(
-        `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/tables/${DUST_TABLE_ID}`
+        `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/tables/${DUST_TABLE_ID}`
       );
 
       if (existingTable.status === 404) {
         await rateLimitedDustApiPost(
-          `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/tables`,
+          `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/tables`,
           {
             id: DUST_TABLE_ID,
             name: "Salesforce Accounts",
