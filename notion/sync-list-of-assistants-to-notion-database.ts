@@ -232,7 +232,7 @@ async function upsertToNotion(assistant: any) {
     return response;
   } catch (error) {
     console.error(`Error processing assistant '${assistant.name}':`, error);
-    throw error;
+    return null;
   }
 }
 
