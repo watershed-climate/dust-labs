@@ -134,8 +134,8 @@ async function upsertToNotion(assistant: any) {
     const existingPages = await notion.databases.query({
       database_id: NOTION_DATABASE_ID ?? '',
       filter: {
-        property: 'dust.name',
-        title: { equals: assistant.name }
+        property: 'dust.sId',
+        rich_text: { equals: assistant.sId }
       }
     });
 
