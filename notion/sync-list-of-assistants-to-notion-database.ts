@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 import * as dotenv from 'dotenv';
-import { Client } from '@notionhq/client';
+import { Client, iteratePaginatedAPI } from '@notionhq/client';
 import { parse } from 'csv-parse/sync';
 
 dotenv.config();
@@ -236,6 +236,38 @@ async function upsertToNotion(assistant: any) {
   }
 }
 
+async function deleteOrphanedPages(assistants: DustAssistant[]) {
+  console.log('Checking for orphaned pages in Notion database...');
+  const existingAssistantSIds = new Set(assistants.map(a => a.sId));
+
+  for await (const page of iteratePaginatedAPI(notion.databases.query, {
+    database_id: NOTION_DATABASE_ID ?? '',
+  })) {
+    if ('properties' in page) {
+      const sIdProp = page.properties['dust.sId'];
+      const nameProp = page.properties['dust.name'];
+
+      if (sIdProp && 'rich_text' in sIdProp && nameProp && 'title' in nameProp) {
+        const pageSId = sIdProp.rich_text[0]?.plain_text;
+        const assistantName = nameProp.title[0]?.plain_text;
+        if (pageSId && !existingAssistantSIds.has(pageSId)) {
+          console.log(`Deleting assistant "${assistantName}" (${pageSId})`);
+          await notion.comments.create({
+            parent: { page_id: page.id },
+            rich_text: [{ text: { content: `This assistant has been deleted on ${new Date().toLocaleString()} because it no longer appears as a shared assistant in Dust.` } }]
+          });
+          await notion.pages.update({
+            page_id: page.id,
+            archived: true,
+          });
+        }
+      }
+    }
+  }
+
+  console.log('Finished checking for orphaned pages.');
+}
+
 async function main() {
   console.log(`Syncing the list of Dust assistants from workspace ${DUST_WORKSPACE_ID} into Notion database ${NOTION_DATABASE_ID}`);
   try {
@@ -249,6 +281,8 @@ async function main() {
     for (const assistant of assistants) {
       await upsertToNotion(assistant);
     }
+
+    await deleteOrphanedPages(assistants);
 
     console.log('All assistants processed successfully.');
   } catch (error) {
