@@ -4,9 +4,12 @@ import Bottleneck from "bottleneck";
 
 dotenv.config();
 
+const DEFAULT_JIRA_QUERY = "updated >= -24h ORDER BY updated DESC";
+
 const JIRA_SUBDOMAIN = process.env.JIRA_SUBDOMAIN;
 const JIRA_EMAIL = process.env.JIRA_EMAIL;
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
+const JIRA_QUERY = process.env.JIRA_QUERY || DEFAULT_JIRA_QUERY;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
@@ -29,7 +32,6 @@ if (missingEnvVars.length > 0) {
 }
 
 const DUST_RATE_LIMIT = 120; // requests per minute
-const ISSUES_UPDATED_SINCE = "24h";
 
 const jiraApi = axios.create({
   baseURL: `https://${JIRA_SUBDOMAIN}.atlassian.net/rest/api/3`,
@@ -158,7 +160,7 @@ async function getIssuesUpdatedLast24Hours(): Promise<JiraIssue[]> {
   const makeRequest = async (retryCount = 0): Promise<AxiosResponse<JiraSearchResponse>> => {
     try {
       return await jiraApi.post("/search", {
-        jql: `updated >= -${ISSUES_UPDATED_SINCE} ORDER BY updated DESC`,
+        jql: JIRA_QUERY,
         startAt,
         maxResults,
         fields: [

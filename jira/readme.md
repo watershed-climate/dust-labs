@@ -78,6 +78,7 @@ Create a `.env` file in the root directory of the project with the following var
 JIRA_SUBDOMAIN=your-jira-subdomain
 JIRA_EMAIL=your-jira-email
 JIRA_API_TOKEN=your-jira-api-token
+JIRA_QUERY=your-jira-query # optional, default is `updated >= -24h ORDER BY updated DESC`
 DUST_API_KEY=your-dust-api-key
 DUST_WORKSPACE_ID=your-dust-workspace-id
 DUST_DATASOURCE_ID=your-dust-datasource-id
