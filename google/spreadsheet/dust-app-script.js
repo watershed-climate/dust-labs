@@ -38,16 +38,22 @@ function showCredentialsDialog() {
 }
 
 function handleCellSelection() {
-  const selectedRange = SpreadsheetApp.getActiveRange();
-  if (selectedRange) {
+  try {
+    const selectedRange = SpreadsheetApp.getSelection().getActiveRange();
+    return selectedRange
+      ? {
+          range: selectedRange.getA1Notation(),
+          success: true,
+        }
+      : {
+          success: false,
+        };
+  } catch (error) {
     return {
-      range: selectedRange.getA1Notation(),
-      success: true,
+      success: false,
+      error: error.toString(),
     };
   }
-  return {
-    success: false,
-  };
 }
 
 function storeFormData(formData) {
@@ -261,7 +267,7 @@ function processSelected() {
 
         <script>
           document.getElementById('selectCellsBtn').addEventListener('click', function() {
-            getSelection();
+            debouncedGetSelection();
           });
         </script>
         
@@ -273,24 +279,54 @@ function processSelected() {
       </form>
 
       <script>
+        function debounce(func, wait) {
+          let timeout;
+          return function executedFunction(...args) {
+            const later = () => {
+              clearTimeout(timeout);
+              func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+          };
+        }
+
+        // Wrap getSelection with debounce
+        const debouncedGetSelection = debounce(getSelection, 250);
+
         function getSelection() {
-          document.getElementById('selectCellsBtn').disabled = true;
+          const selectCellsBtn = document.getElementById('selectCellsBtn');
+          const cellRangeInput = document.getElementById('cellRange');
+          
+          // Add loading state
+          selectCellsBtn.disabled = true;
+          selectCellsBtn.value = '...';
 
           google.script.run
             .withSuccessHandler(function(result) {
-              document.getElementById('selectCellsBtn').disabled = false;
+              selectCellsBtn.disabled = false;
+              selectCellsBtn.value = 'Use Selection';
+              
               if (result.success) {
-                document.getElementById('cellRange').value = result.range;
+                cellRangeInput.value = result.range;
               } else {
-                SpreadsheetApp.getUi().alert("Please select some cells first");
+                if (result.error) {
+                  console.error('Selection error:', result.error);
+                }
+                // Only show alert if there's no selection
+                if (!cellRangeInput.value) {
+                  alert("Please select some cells first");
+                }
               }
             })
             .withFailureHandler(function(error) {
-              document.getElementById('selectCellsBtn').disabled = false;
-              document.getElementById('cellRange').value = '';
+              selectCellsBtn.disabled = false;
+              selectCellsBtn.value = 'Use Selection';
+              console.error('Selection failed:', error);
             })
             .handleCellSelection();
         }
+
 
         function onLoad() {
           google.script.run
