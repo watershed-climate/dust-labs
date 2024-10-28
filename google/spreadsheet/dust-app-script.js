@@ -116,13 +116,6 @@ function processSelected() {
           100% { transform: rotate(360deg); }
         }
         
-        #warningtext { 
-          text-align: center;
-          margin: 15px 0;
-          color: #666;
-          font-size: 0.6em;
-        }
-        
         #status {
           text-align: center;
           margin: 15px 0;
@@ -259,8 +252,6 @@ function processSelected() {
           <label for="instructions">Instructions (optional):</label><br>
           <textarea id="instructions" name="instructions" rows="4" style="width:99%"></textarea>
         </div>
-
-        <div id="warningtext">Results will appear in the cells immediately to the right of your selection.</div>
         <div id="status"></div>
         <div class="button-group">
           <input type="submit" value="Process" id="submitBtn">
@@ -531,6 +522,9 @@ function processWithAssistant(
   rangeA1Notation,
   targetColumn
 ) {
+  const BATCH_SIZE = 5; // Adjust this value based on your needs
+  const BATCH_DELAY = 1000; // Delay between batches in milliseconds
+
   const docProperties = PropertiesService.getDocumentProperties();
   const token = docProperties.getProperty("dustToken");
   const workspaceId = docProperties.getProperty("workspaceId");
@@ -554,8 +548,7 @@ function processWithAssistant(
   const totalCells = selectedValues.reduce((acc, row) => acc + row.length, 0);
   let processedCells = 0;
 
-  // Prepare all API requests and mark cells as processing
-  const requests = [];
+  // Prepare all cells to process
   const cellsToProcess = [];
 
   for (let i = 0; i < selectedValues.length; i++) {
@@ -564,8 +557,11 @@ function processWithAssistant(
       const currentRow = selected.getRow() + i;
       const targetCell = sheet.getRange(currentRow, targetColIndex);
 
-      // Mark cell as processing
-      targetCell.setValue("Processing...");
+      if (!inputValue) {
+        targetCell.setValue("No input value");
+        processedCells++;
+        continue;
+      }
 
       const payload = {
         message: {
@@ -585,7 +581,7 @@ function processWithAssistant(
         visibility: "unlisted",
       };
 
-      requests.push({
+      const request = {
         url: `${BASE_URL}/assistant/conversations`,
         method: "post",
         headers: {
@@ -594,47 +590,76 @@ function processWithAssistant(
         },
         payload: JSON.stringify(payload),
         muteHttpExceptions: true,
-      });
+      };
 
       cellsToProcess.push({
         cell: targetCell,
-        row: currentRow,
-        col: targetColIndex,
+        request: request,
       });
     }
   }
 
-  // Show initial progress
-  SpreadsheetApp.getActiveSpreadsheet().toast(
-    `Processing: 0/${totalCells} cells (0%)`,
-    "Progress",
-    -1
-  );
+  // Process in batches
+  const batches = [];
+  for (let i = 0; i < cellsToProcess.length; i += BATCH_SIZE) {
+    batches.push(cellsToProcess.slice(i, i + BATCH_SIZE));
+  }
 
-  // Make all API calls in parallel
-  const responses = UrlFetchApp.fetchAll(requests);
+  // Process each batch
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    const batch = batches[batchIndex];
 
-  // Process responses
-  responses.forEach((response, index) => {
-    const targetCell = cellsToProcess[index].cell;
+    // Process each request in the batch
+    const batchPromises = batch.map((item, index) => {
+      return new Promise((resolve) => {
+        try {
+          // Add a small delay between requests within the batch
+          Utilities.sleep(index * 200);
 
-    try {
-      const result = JSON.parse(response.getContentText());
-      const content = result.conversation.content;
-      const lastAgentMessage = content
-        .flat()
-        .reverse()
-        .find((msg) => msg.type === "agent_message");
-      const appUrl = `https://dust.tt/w/${workspaceId}/assistant/${result.conversation.sId}`;
+          const response = UrlFetchApp.fetch(item.request.url, item.request);
 
-      targetCell.setValue(lastAgentMessage?.content || "No response");
-      targetCell.setNote(`View conversation on Dust: ${appUrl}`);
-    } catch (error) {
-      targetCell.setValue("Error: " + error.toString());
+          try {
+            const result = JSON.parse(response.getContentText());
+            const content = result.conversation.content;
+            const lastAgentMessage = content
+              .flat()
+              .reverse()
+              .find((msg) => msg.type === "agent_message");
+            const appUrl = `https://dust.tt/w/${workspaceId}/assistant/${result.conversation.sId}`;
+
+            item.cell.setValue(lastAgentMessage?.content || "No response");
+            item.cell.setNote(`View conversation on Dust: ${appUrl}`);
+          } catch (error) {
+            item.cell.setValue("Error: " + error.toString());
+          }
+
+          processedCells++;
+
+          // Update progress
+          const progress = Math.round((processedCells / totalCells) * 100);
+          SpreadsheetApp.getActiveSpreadsheet().toast(
+            `Processing: ${processedCells}/${totalCells} cells (${progress}%)`,
+            "Progress",
+            -1
+          );
+
+          resolve();
+        } catch (fetchError) {
+          item.cell.setValue("Fetch Error: " + fetchError.toString());
+          processedCells++;
+          resolve();
+        }
+      });
+    });
+
+    // Wait for all promises in the batch to complete
+    Promise.all(batchPromises);
+
+    // Add delay between batches if not the last batch
+    if (batchIndex < batches.length - 1) {
+      Utilities.sleep(BATCH_DELAY);
     }
-
-    processedCells++;
-  });
+  }
 
   // Show completion toast
   SpreadsheetApp.getActiveSpreadsheet().toast(
