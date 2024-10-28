@@ -1,6 +1,3 @@
-const WEBAPP_URL =
-  "https://script.google.com/macros/s/AKfycbz2yh-g3cBIiJrC0usxzEcdai0-jxPF4Fw1_wJiaQKnhZ8s5kHzw3P77RwsDHtNeBoK/exec";
-
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Dust")
@@ -461,17 +458,36 @@ function fetchAssistants() {
   }
 
   try {
+    const BASE_URL = `https://dust.tt/api/v1/w/${workspaceId}`;
     const response = UrlFetchApp.fetch(
-      `${WEBAPP_URL}?token=${encodeURIComponent(
-        token
-      )}&workspaceId=${encodeURIComponent(workspaceId)}`,
+      `${BASE_URL}/assistant/agent_configurations`,
       {
         method: "get",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         muteHttpExceptions: true,
       }
     );
 
-    return JSON.parse(response.getContentText());
+    // Check if response is valid
+    if (response.getResponseCode() !== 200) {
+      return { error: `API returned ${response.getResponseCode()}` };
+    }
+
+    const assistants = JSON.parse(
+      response.getContentText()
+    ).agentConfigurations;
+    const sortedAssistants = assistants.sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+
+    return {
+      assistants: sortedAssistants.map((a) => ({
+        id: a.sId,
+        name: a.name,
+      })),
+    };
   } catch (error) {
     return { error: error.toString() };
   }
@@ -493,10 +509,6 @@ function processWithAssistant(
 
   const sheet = SpreadsheetApp.getActiveSheet();
   const selected = sheet.getRange(rangeA1Notation);
-  const requests = [];
-  const cells = [];
-
-  // Convert column letter to index (e.g., 'B' -> 2)
   const targetColIndex = columnToIndex(targetColumn);
 
   if (!targetColIndex) {
@@ -505,60 +517,69 @@ function processWithAssistant(
     );
   }
 
-  // Prepare all requests
+  const BASE_URL = `https://dust.tt/api/v1/w/${workspaceId}`;
   const selectedValues = selected.getValues();
+
   for (let i = 0; i < selectedValues.length; i++) {
     const row = selectedValues[i];
     for (let j = 0; j < row.length; j++) {
       const inputValue = row[j];
       const currentRow = selected.getRow() + i;
-
-      // Create target cell in specified column
       const targetCell = sheet.getRange(currentRow, targetColIndex);
 
-      requests.push({
-        url: WEBAPP_URL,
-        method: "post",
-        contentType: "application/json",
-        payload: JSON.stringify({
-          value: inputValue,
-          token: token,
-          workspaceId: workspaceId,
-          assistantId,
-          prompt: instructions,
-        }),
-        muteHttpExceptions: true,
-      });
-      cells.push(targetCell);
-    }
-  }
-
-  // Process in batches of 20
-  const batchSize = 20;
-  for (let i = 0; i < requests.length; i += batchSize) {
-    const batch = requests.slice(i, i + batchSize);
-    const responses = UrlFetchApp.fetchAll(batch);
-
-    // Process each response in the batch
-    responses.forEach((response, j) => {
       try {
+        const payload = {
+          message: {
+            content: `${instructions || ""}\nInput: ${inputValue}`,
+            mentions: [{ configurationId: assistantId }],
+            context: {
+              username: "gsheet",
+              timezone: Session.getScriptTimeZone(),
+              fullName: "Google Sheets",
+              email: "gsheet@dust.tt",
+              profilePictureUrl: "",
+              origin: "gsheet",
+            },
+          },
+          blocking: true,
+          title: "Google Sheets Conversation",
+          visibility: "unlisted",
+        };
+
+        const response = UrlFetchApp.fetch(
+          `${BASE_URL}/assistant/conversations`,
+          {
+            method: "post",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            payload: JSON.stringify(payload),
+            muteHttpExceptions: true,
+          }
+        );
+
         const result = JSON.parse(response.getContentText());
-        const targetCell = cells[i + j];
+        const content = result.conversation.content;
 
-        if (result.error) {
-          targetCell.setValue("Error: " + result.error);
-        } else {
-          const content = result.content;
-          const appUrl = `https://dust.tt/w/${workspaceId}/assistant/${result.conversationId}`;
+        // Get last agent message
+        const lastAgentMessage = content
+          .flat()
+          .reverse()
+          .find((msg) => msg.type === "agent_message");
 
-          // Set the cell value and note
-          targetCell.setValue(content);
-          targetCell.setNote(`View conversation on Dust: ${appUrl}`);
-        }
+        const appUrl = `https://dust.tt/w/${workspaceId}/assistant/${result.conversation.sId}`;
+
+        // Set the cell value and note
+        targetCell.setValue(lastAgentMessage?.content || "No response");
+        targetCell.setNote(`View conversation on Dust: ${appUrl}`);
       } catch (error) {
-        cells[i + j].setValue("Error: " + error.toString());
+        targetCell.setValue("Error: " + error.toString());
       }
-    });
+
+      // Add a small delay to avoid rate limiting
+      Utilities.sleep(100);
+    }
   }
 }
 
