@@ -1,69 +1,81 @@
-# Dust Assistant for Google Spreadsheets
+# Dust Assistant for Google Sheets
 
-> **Beta Disclaimer**: This integration is currently in beta and only accessible to Enterprise customers. Features and functionality are subject to change as we continue to improve the product based on user feedback and testing.
+This Google Apps Script allows you to easily integrate Dust AI assistants with Google Sheets, enabling you to process cell content through Dust assistants directly from your spreadsheet.
 
-## 1. Introduction
+## Installation
 
-The Dust Assistant for Google Spreadsheets is an App Script that allows users to interact with a Dust AI assistant directly from their Google Spreadsheet. This integration brings the power of Dust's AI capabilities to your spreadsheet workflows, enabling more efficient data analysis and task automation.
+1. Copy the content of dust-app-script.js
+2. Open your Google Spreadsheet
+3. Go to `Extensions > Apps Script`
+4. Delete any existing code in the editor
+5. Copy and paste the entire script content into the editor
+6. Save the project (Ctrl/Cmd + S)
+7. Refresh your Google Spreadsheet
 
-Note: The App Script needs to be manually added to each spreadsheet where you want to use the Dust Assistant.
+## Setup
 
-## 2. How to Add the App Script to Your Google Spreadsheet
+Before using the script, you need to configure your Dust credentials:
 
-To add the Dust Assistant App Script to your Google Spreadsheet, follow these steps:
+1. Click on the new "Dust" menu item in your spreadsheet
+2. Select "Setup"
+3. Enter your:
+   - Dust Workspace ID (found in your workspace URL: dust.tt/w/[workspace-id])
+   - Dust API Key (generate one at dust.tt/settings/developers)
 
-1. Open your Google Spreadsheet.
-2. Click on the "Extensions" menu at the top of the page.
-3. Select "Apps Script" from the dropdown menu.
-4. In the Apps Script editor, click on "Add a file" (usually a plus icon).
-5. Choose "Script" from the options.
-6. Name the file "dust" (or any name you prefer).
-7. Replace all the content in the placeholder script with the provided script from the `dust-app-script.js` file.
-8. Save the script.
+## Usage
 
-## 3. Configuring the App Script
+### Basic Operation
 
-After adding the App Script to your spreadsheet, you'll need to configure some settings. Here's how to get the required information:
+1. Select the cells you want to process
+2. Click `Dust > Call an Assistant`
+3. In the sidebar that appears:
+   - Select your Dust assistant
+   - Verify the input cell range (or use the "Use Selection" button)
+   - Specify the target column where results should appear (e.g., "B")
+   - Optionally add specific instructions
+4. Click "Process"
 
-1. Reload your spreadsheet
-2. You should now see a "Dust" menu at the top. Click on it, then click "Setup"
-3. Add your Dust Workspace ID and your Dust API Key.
+### Features
 
-To obtain the necessary values, create an API Key on Dust (You need to be admin to do so)
+- **Batch Processing**: Process multiple cells at once
+- **Custom Instructions**: Add specific instructions for the assistant
+- **Progress Tracking**: Monitor processing progress in real-time
+- **Error Handling**: Clear error messages if something goes wrong
+- **Result Links**: Each processed cell includes a note with a link to view the full conversation on Dust
 
-## 4. Using the Dust Assistant in Your Spreadsheet
+## Requirements
 
-Once you've set up the App Script and configured it with your Workspace ID and API Key, you can start using the Dust Assistant directly in your spreadsheet cells. The general syntax for using the Dust Assistant is:
+- A Dust.tt account with API access
+- Google Sheets access
+- Script authorization (you'll be prompted on first use)
 
-=DUST(<assistant_name>, <question/prompt>, <cell_reference>)
+## Permissions
 
-Here's an example of how you might use it:
+The script requires the following permissions:
 
-### Example: Market Analysis Assistant
+- Read/write access to your spreadsheet
+- Internet access (to communicate with Dust API)
+- Script properties storage (to save your credentials)
 
-Let's say you have a Dust Assistant named "MarketGuru" that specializes in market analysis. You can use it to analyze data in your spreadsheet:
+## Limitations
 
-1. In cell A1, you have a list of product names.
-2. In cell B1, you want to get a brief market analysis for each product.
+- API rate limits apply based on your Dust plan
+- Processing time increases with the number of cells
+- Maximum cell content length is determined by Dust API limits
 
-You could use the following formula in cell B1:
+## Troubleshooting
 
-=DUST("MarketGuru", "Provide a brief market analysis for this product, including current trends and potential growth opportunities:", A1)
+If you encounter issues:
 
-This would prompt MarketGuru to analyze the product name in A1 and provide insights in B1. You can then drag this formula down to apply it to multiple products in column A.
+1. Verify your credentials in the Setup
+2. Check if you have selected valid input cells
+3. Ensure the target column is a valid letter (A-Z)
+4. Check the browser console for detailed error messages
 
-The assistant might respond with something like:
+## Security Note
 
-"Based on current market trends, [Product Name] shows strong potential for growth. Recent consumer behavior indicates increasing demand in this sector, particularly among millennials. Key opportunities include expanding into e-commerce channels and developing eco-friendly variants to capture the growing sustainability-conscious market segment."
+Your Dust credentials are stored securely in Google's Script Properties and are only accessible within your spreadsheet.
 
-Remember, you can customize the prompt and assistant name based on your specific needs and the assistants you've set up in your Dust workspace.
+## Contributing
 
-## 5. Limitations
-
-Please be aware of the following limitations when using the Dust Assistant in Google Spreadsheets:
-
-1. **Response Time**: The assistant must respond within 30 seconds, or the spreadsheet will return an error. Ensure your queries are concise and specific to avoid timeouts.
-
-2. **Daily Message Limit**: Each interaction with a Dust Assistant counts towards the daily message limit of 100 messages per user per day. For example, if your workspace has 100 users, your total daily capacity is 10,000 messages (100 users \* 100 messages).
-
-By keeping these limitations in mind, you can optimize your use of the Dust Assistant in Google Spreadsheets and ensure a smooth experience for all users in your workspace.
+Feel free to submit issues and enhancement requests through the GitHub repository.
