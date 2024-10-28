@@ -422,7 +422,7 @@ function processSelected() {
           }
 
           document.getElementById('submitBtn').disabled = true;
-          document.getElementById('status').innerHTML = '<div id="spinner" class="spinner"></div> Starting processing...';
+          document.getElementById('status').innerHTML = '<div id="spinner" class="spinner"></div> Processing...';
           
           google.script.run
             .withSuccessHandler(function(result) {
@@ -522,8 +522,8 @@ function processWithAssistant(
   rangeA1Notation,
   targetColumn
 ) {
-  const BATCH_SIZE = 5; // Adjust this value based on your needs
-  const BATCH_DELAY = 1000; // Delay between batches in milliseconds
+  const BATCH_SIZE = 10;
+  const BATCH_DELAY = 1000;
 
   const docProperties = PropertiesService.getDocumentProperties();
   const token = docProperties.getProperty("dustToken");
@@ -548,7 +548,6 @@ function processWithAssistant(
   const totalCells = selectedValues.reduce((acc, row) => acc + row.length, 0);
   let processedCells = 0;
 
-  // Prepare all cells to process
   const cellsToProcess = [];
 
   for (let i = 0; i < selectedValues.length; i++) {
@@ -599,69 +598,49 @@ function processWithAssistant(
     }
   }
 
-  // Process in batches
   const batches = [];
   for (let i = 0; i < cellsToProcess.length; i += BATCH_SIZE) {
     batches.push(cellsToProcess.slice(i, i + BATCH_SIZE));
   }
 
-  // Process each batch
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex];
+    const batchRequests = batch.map((item) => item.request);
+    const responses = UrlFetchApp.fetchAll(batchRequests);
 
-    // Process each request in the batch
-    const batchPromises = batch.map((item, index) => {
-      return new Promise((resolve) => {
-        try {
-          // Add a small delay between requests within the batch
-          Utilities.sleep(index * 200);
+    responses.forEach((response, index) => {
+      const targetCell = batch[index].cell;
 
-          const response = UrlFetchApp.fetch(item.request.url, item.request);
+      try {
+        const result = JSON.parse(response.getContentText());
+        const content = result.conversation.content;
+        const lastAgentMessage = content
+          .flat()
+          .reverse()
+          .find((msg) => msg.type === "agent_message");
+        const appUrl = `https://dust.tt/w/${workspaceId}/assistant/${result.conversation.sId}`;
 
-          try {
-            const result = JSON.parse(response.getContentText());
-            const content = result.conversation.content;
-            const lastAgentMessage = content
-              .flat()
-              .reverse()
-              .find((msg) => msg.type === "agent_message");
-            const appUrl = `https://dust.tt/w/${workspaceId}/assistant/${result.conversation.sId}`;
+        targetCell.setValue(lastAgentMessage?.content || "No response");
+        targetCell.setNote(`View conversation on Dust: ${appUrl}`);
+      } catch (error) {
+        targetCell.setValue("Error: " + error.toString());
+      }
 
-            item.cell.setValue(lastAgentMessage?.content || "No response");
-            item.cell.setNote(`View conversation on Dust: ${appUrl}`);
-          } catch (error) {
-            item.cell.setValue("Error: " + error.toString());
-          }
-
-          processedCells++;
-
-          // Update progress
-          const progress = Math.round((processedCells / totalCells) * 100);
-          SpreadsheetApp.getActiveSpreadsheet().toast(
-            `Processing: ${processedCells}/${totalCells} cells (${progress}%)`,
-            "Progress",
-            -1
-          );
-
-          resolve();
-        } catch (fetchError) {
-          item.cell.setValue("Fetch Error: " + fetchError.toString());
-          processedCells++;
-          resolve();
-        }
-      });
+      processedCells++;
     });
 
-    // Wait for all promises in the batch to complete
-    Promise.all(batchPromises);
+    const progress = Math.round((processedCells / totalCells) * 100);
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      `Processed ${processedCells}/${totalCells} cells (${progress}%)`,
+      "Progress",
+      -1
+    );
 
-    // Add delay between batches if not the last batch
     if (batchIndex < batches.length - 1) {
       Utilities.sleep(BATCH_DELAY);
     }
   }
 
-  // Show completion toast
   SpreadsheetApp.getActiveSpreadsheet().toast(
     `Completed: ${totalCells}/${totalCells} cells (100%)`,
     "Progress",
