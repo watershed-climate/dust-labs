@@ -189,14 +189,12 @@ function processSelected() {
           height: 36px !important;
         }
         
-        /* Modified/New styles */
         #cellRange {
           width: calc(100% - 90px);
           display: inline-block;
           margin-right: 5px;
         }
         
-        /* Update the existing button styles */
         input[type="submit"], input[type="button"], #selectCellsBtn {
           background-color: #61A5FA;
           color: white;
@@ -210,7 +208,6 @@ function processSelected() {
           background-color: #4884d9;
         }
 
-        /* Remove the duplicate #selectCellsBtn styles and merge them */
         #selectCellsBtn {
           width: 85px;
           padding: 8px 5px;
@@ -238,7 +235,6 @@ function processSelected() {
         }
       </style>
 
-
       <form id="myForm">
         <div style="margin-bottom: 10px;">
           <label for="assistant">Assistant:</label><br>
@@ -259,18 +255,11 @@ function processSelected() {
           <input type="text" id="targetColumn" name="targetColumn" required placeholder="e.g., B" style="width:120px">
         </div>
 
-
         <div style="margin-bottom: 10px;">
           <label for="instructions">Instructions (optional):</label><br>
           <textarea id="instructions" name="instructions" rows="4" style="width:99%"></textarea>
         </div>
 
-        <script>
-          document.getElementById('selectCellsBtn').addEventListener('click', function() {
-            debouncedGetSelection();
-          });
-        </script>
-        
         <div id="warningtext">Results will appear in the cells immediately to the right of your selection.</div>
         <div id="status"></div>
         <div class="button-group">
@@ -291,14 +280,12 @@ function processSelected() {
           };
         }
 
-        // Wrap getSelection with debounce
         const debouncedGetSelection = debounce(getSelection, 250);
 
         function getSelection() {
           const selectCellsBtn = document.getElementById('selectCellsBtn');
           const cellRangeInput = document.getElementById('cellRange');
           
-          // Add loading state
           selectCellsBtn.disabled = true;
           selectCellsBtn.value = '...';
 
@@ -313,7 +300,6 @@ function processSelected() {
                 if (result.error) {
                   console.error('Selection error:', result.error);
                 }
-                // Only show alert if there's no selection
                 if (!cellRangeInput.value) {
                   alert("Please select some cells first");
                 }
@@ -327,6 +313,9 @@ function processSelected() {
             .handleCellSelection();
         }
 
+        document.getElementById('selectCellsBtn').addEventListener('click', function() {
+          debouncedGetSelection();
+        });
 
         function onLoad() {
           google.script.run
@@ -339,7 +328,6 @@ function processSelected() {
             .getCurrentSelection();
         }
 
-        // Initialize Select2 with disabled state and loading placeholder
         $(document).ready(function() {
           onLoad();
           $('#assistant').select2({
@@ -354,7 +342,6 @@ function processSelected() {
           });
         });
 
-        // Fetch assistants when sidebar opens
         google.script.run
           .withSuccessHandler(function(data) {
             const select = document.getElementById('assistant');
@@ -371,15 +358,12 @@ function processSelected() {
               return;
             }
 
-            // Clear the loading option
             select.innerHTML = '';
             
-            // Add empty option for placeholder
             const emptyOption = document.createElement('option');
             emptyOption.value = '';
             select.appendChild(emptyOption);
             
-            // Add all assistants
             data.assistants.forEach(a => {
               const option = document.createElement('option');
               option.value = a.id;
@@ -387,7 +371,6 @@ function processSelected() {
               select.appendChild(option);
             });
             
-            // Enable the select and update placeholder
             select.disabled = false;
             $('#assistant').select2({
               placeholder: 'Select an assistant',
@@ -400,7 +383,6 @@ function processSelected() {
               }
             });
             
-            // If no assistants were loaded, show a message
             if (data.assistants.length === 0) {
               $('#assistant').select2({
                 placeholder: 'No assistants available',
@@ -410,7 +392,6 @@ function processSelected() {
             }
           })
           .withFailureHandler(function(error) {
-            const select = document.getElementById('assistant');
             const errorDiv = document.getElementById('loadError');
             errorDiv.textContent = '❌ ' + error;
             errorDiv.style.display = 'block';
@@ -423,7 +404,6 @@ function processSelected() {
           })
           .fetchAssistants();
 
-        // Form submission handler
         document.getElementById('myForm').addEventListener('submit', function(e) {
           e.preventDefault();
           const assistantSelect = document.getElementById('assistant');
@@ -445,34 +425,40 @@ function processSelected() {
           }
 
           const targetColumn = document.getElementById('targetColumn').value;
-            if (!/^[A-Za-z]+$/.test(targetColumn)) {
-              alert('Please enter a valid target column letter (e.g., A, B, C)');
-              return;
-            }
+          if (!/^[A-Za-z]+$/.test(targetColumn)) {
+            alert('Please enter a valid target column letter (e.g., A, B, C)');
+            return;
+          }
 
           document.getElementById('submitBtn').disabled = true;
-          document.getElementById('status').innerHTML = '<div id="spinner" class="spinner"></div> Processing cells...';
-          
+          document.getElementById('status').innerHTML = '<div id="spinner" class="spinner"></div> Starting processing...';
           
           google.script.run
-            .withSuccessHandler(function() {
-              document.getElementById('submitBtn').disabled = false;
-              document.getElementById('status').innerHTML = '✅ Processing complete';
-              setTimeout(() => {
-                document.getElementById('status').innerHTML = '';
-              }, 3000);
+            .withSuccessHandler(function(result) {
+              if (result.completed) {
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('status').innerHTML = '✅ Processing complete';
+                setTimeout(() => {
+                  document.getElementById('status').innerHTML = '';
+                }, 3000);
+              } else if (result.progress) {
+                document.getElementById('status').innerHTML = 
+                  '<div id="spinner" class="spinner"></div> ' + result.progress;
+              }
             })
             .withFailureHandler(function(error) {
               document.getElementById('submitBtn').disabled = false;
               document.getElementById('status').textContent = '❌ Error: ' + error;
             })
-           .processWithAssistant(
+            .processWithAssistant(
               assistantSelect.value,
               document.getElementById('instructions').value,
               cellRange.value,
               document.getElementById('targetColumn').value
             );
         });
+
+
       </script>
     `
   ).setTitle("Dust");
@@ -517,7 +503,6 @@ function fetchAssistants() {
       }
     );
 
-    // Check if response is valid
     if (response.getResponseCode() !== 200) {
       return { error: `API returned ${response.getResponseCode()}` };
     }
@@ -566,68 +551,101 @@ function processWithAssistant(
 
   const BASE_URL = `https://dust.tt/api/v1/w/${workspaceId}`;
   const selectedValues = selected.getValues();
+  const totalCells = selectedValues.reduce((acc, row) => acc + row.length, 0);
+  let processedCells = 0;
+
+  // Prepare all API requests and mark cells as processing
+  const requests = [];
+  const cellsToProcess = [];
 
   for (let i = 0; i < selectedValues.length; i++) {
-    const row = selectedValues[i];
-    for (let j = 0; j < row.length; j++) {
-      const inputValue = row[j];
+    for (let j = 0; j < selectedValues[i].length; j++) {
+      const inputValue = selectedValues[i][j];
       const currentRow = selected.getRow() + i;
       const targetCell = sheet.getRange(currentRow, targetColIndex);
 
-      try {
-        const payload = {
-          message: {
-            content: `${instructions || ""}\nInput: ${inputValue}`,
-            mentions: [{ configurationId: assistantId }],
-            context: {
-              username: "gsheet",
-              timezone: Session.getScriptTimeZone(),
-              fullName: "Google Sheets",
-              email: "gsheet@dust.tt",
-              profilePictureUrl: "",
-              origin: "gsheet",
-            },
+      // Mark cell as processing
+      targetCell.setValue("Processing...");
+
+      const payload = {
+        message: {
+          content: `${instructions || ""}\nInput: ${inputValue}`,
+          mentions: [{ configurationId: assistantId }],
+          context: {
+            username: "gsheet",
+            timezone: Session.getScriptTimeZone(),
+            fullName: "Google Sheets",
+            email: "gsheet@dust.tt",
+            profilePictureUrl: "",
+            origin: "gsheet",
           },
-          blocking: true,
-          title: "Google Sheets Conversation",
-          visibility: "unlisted",
-        };
+        },
+        blocking: true,
+        title: "Google Sheets Conversation",
+        visibility: "unlisted",
+      };
 
-        const response = UrlFetchApp.fetch(
-          `${BASE_URL}/assistant/conversations`,
-          {
-            method: "post",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            payload: JSON.stringify(payload),
-            muteHttpExceptions: true,
-          }
-        );
+      requests.push({
+        url: `${BASE_URL}/assistant/conversations`,
+        method: "post",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true,
+      });
 
-        const result = JSON.parse(response.getContentText());
-        const content = result.conversation.content;
-
-        // Get last agent message
-        const lastAgentMessage = content
-          .flat()
-          .reverse()
-          .find((msg) => msg.type === "agent_message");
-
-        const appUrl = `https://dust.tt/w/${workspaceId}/assistant/${result.conversation.sId}`;
-
-        // Set the cell value and note
-        targetCell.setValue(lastAgentMessage?.content || "No response");
-        targetCell.setNote(`View conversation on Dust: ${appUrl}`);
-      } catch (error) {
-        targetCell.setValue("Error: " + error.toString());
-      }
-
-      // Add a small delay to avoid rate limiting
-      Utilities.sleep(100);
+      cellsToProcess.push({
+        cell: targetCell,
+        row: currentRow,
+        col: targetColIndex,
+      });
     }
   }
+
+  // Show initial progress
+  SpreadsheetApp.getActiveSpreadsheet().toast(
+    `Processing: 0/${totalCells} cells (0%)`,
+    "Progress",
+    -1
+  );
+
+  // Make all API calls in parallel
+  const responses = UrlFetchApp.fetchAll(requests);
+
+  // Process responses
+  responses.forEach((response, index) => {
+    const targetCell = cellsToProcess[index].cell;
+
+    try {
+      const result = JSON.parse(response.getContentText());
+      const content = result.conversation.content;
+      const lastAgentMessage = content
+        .flat()
+        .reverse()
+        .find((msg) => msg.type === "agent_message");
+      const appUrl = `https://dust.tt/w/${workspaceId}/assistant/${result.conversation.sId}`;
+
+      targetCell.setValue(lastAgentMessage?.content || "No response");
+      targetCell.setNote(`View conversation on Dust: ${appUrl}`);
+    } catch (error) {
+      targetCell.setValue("Error: " + error.toString());
+    }
+
+    processedCells++;
+  });
+
+  // Show completion toast
+  SpreadsheetApp.getActiveSpreadsheet().toast(
+    `Completed: ${totalCells}/${totalCells} cells (100%)`,
+    "Progress",
+    3
+  );
+
+  return {
+    completed: true,
+  };
 }
 
 // Helper function to convert column letter to index
