@@ -54,18 +54,25 @@ function processSelected() {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
         }
         .spinner {
-          display: none;
-          margin: 10px auto;
-          width: 50px;
-          height: 50px;
+          display: inline-block;
+          width: 12px;
+          height: 12px;
           border: 3px solid #f3f3f3;
           border-top: 3px solid #3498db;
           border-radius: 50%;
           animation: spin 1s linear infinite;
+          margin-right: 8px;
+          vertical-align: middle;
         }
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        #warningtext { 
+         text-align: center;
+          margin: 15px 0;
+          color: #666;
+          line-height: 1.4;
         }
         #status {
           text-align: center;
@@ -140,10 +147,10 @@ function processSelected() {
           <label for="instructions">Instructions (optional):</label><br>
           <textarea id="instructions" name="instructions" rows="4" style="width:99%"></textarea>
         </div>
+        <div id="warningtext">Results will appear in the cells immediately to the right of your selection.</div>
         <div id="status"></div>
         <input type="submit" value="Submit" id="submitBtn">
         <input type="button" value="Hide this window (processing will continue)" id="closeBtn" onclick="google.script.host.close()" style="display: none;">
-        <div id="spinner" class="spinner"></div>
       </form>
       <script>
         // Initialize Select2 with disabled state and loading placeholder
@@ -244,17 +251,15 @@ function processSelected() {
           return;
         }
 
-        document.getElementById('spinner').style.display = 'block';
         document.getElementById('submitBtn').style.display = 'none'; // Changed from disabled to display: none
         document.getElementById('closeBtn').style.display = 'block';
-        document.getElementById('status').innerHTML = '🤖 Processing cells...<br>Results will appear in cells immediately to the right of your selection';
+        document.getElementById('status').innerHTML = '<div id="spinner" class="spinner"></div> Processing cells...';
         
         google.script.run
           .withSuccessHandler(function() {
             google.script.host.close();
           })
           .withFailureHandler(function(error) {
-            document.getElementById('spinner').style.display = 'none';
             document.getElementById('submitBtn').style.display = 'block'; // Show the submit button again on error
             document.getElementById('closeBtn').style.display = 'none';
             document.getElementById('status').textContent = '❌ Oops! something went wrong: ' + error;
@@ -351,9 +356,14 @@ function processWithAssistant(assistantId, instructions) {
         if (result.error) {
           cells[i + j].setValue("Error: " + result.error);
         } else {
-          const content = result.content.replace(/"/g, '""'); // escape quotes in content
+          const content = result.content;
           const appUrl = `https://dust.tt/w/${workspaceId}/assistant/${result.conversationId}`;
-          cells[i + j].setFormula(`=HYPERLINK("${appUrl}", "${content}")`);
+
+          // Set the cell value as plain text
+          cells[i + j].setValue(content);
+
+          // Add a comment with the Dust discussion link
+          cells[i + j].setNote(`View Dust discussion: ${appUrl}`);
         }
       } catch (error) {
         cells[i + j].setValue("Error: " + error.toString());
