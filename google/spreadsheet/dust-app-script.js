@@ -45,7 +45,14 @@ function processSelected() {
 
   const htmlOutput = HtmlService.createHtmlOutput(
     `
+      <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+      
       <style>
+        * {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
         .spinner {
           display: none;
           margin: 10px auto;
@@ -70,95 +77,198 @@ function processSelected() {
           display: none;
           margin: 10px auto;
         }
-        select, input {
+        select, input, textarea {
           width: 100%;
-          padding: 8px;
+          padding-top: 8px;
+          padding-bottom: 8px;
           margin-bottom: 10px;
           border: 1px solid #ddd;
           border-radius: 4px;
+          font-family: inherit;
         }
         select {
           background: white;
+        }
+        input[type="submit"], input[type="button"] {
+          background-color: #61A5FA;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+        }
+        input[type="submit"]:hover, input[type="button"]:hover {
+          background-color: #4884d9;
+        }
+        input[type="submit"]:disabled {
+          background-color: #cccccc;
+          cursor: not-allowed;
         }
         .error {
           color: red;
           display: none;
           margin-bottom: 10px;
         }
+        label {
+          font-weight: 500;
+          color: #333;
+          margin-bottom: 5px;
+          display: inline-block;
+        }
+        .select2-container {
+          width: 100% !important;
+          margin-bottom: 10px;
+        }
+        .select2-selection {
+          height: 38px !important;
+          padding: 4px !important;
+        }
+        .select2-selection__arrow {
+          height: 36px !important;
+        }
       </style>
+
       <form id="myForm">
         <div style="margin-bottom: 10px;">
           <label for="assistant">Assistant:</label><br>
-          <select id="assistant" name="assistant" required>
-            <option value="">Loading assistants...</option>
+          <select id="assistant" name="assistant" required disabled>
+            <option value=""></option>
           </select>
           <div id="loadError" class="error">Failed to load assistants</div>
         </div>
         <div style="margin-bottom: 10px;">
           <label for="instructions">Instructions (optional):</label><br>
-          <textarea id="instructions" name="instructions" rows="4" style="width: 100%;"></textarea>
+          <textarea id="instructions" name="instructions" rows="4" style="width:99%"></textarea>
         </div>
-        <input type="submit" value="Submit" id="submitBtn">
-        <input type="button" value="Hide Dialog" id="closeBtn" onclick="google.script.host.close()" style="display: none;">
-        <div id="spinner" class="spinner"></div>
         <div id="status"></div>
+        <input type="submit" value="Submit" id="submitBtn">
+        <input type="button" value="Hide this window (processing will continue)" id="closeBtn" onclick="google.script.host.close()" style="display: none;">
+        <div id="spinner" class="spinner"></div>
       </form>
       <script>
+        // Initialize Select2 with disabled state and loading placeholder
+        $(document).ready(function() {
+          $('#assistant').select2({
+            placeholder: 'Loading assistants...',
+            allowClear: true,
+            width: '100%',
+            language: {
+              noResults: function() {
+                return 'No assistants found';
+              }
+            }
+          });
+        });
+
         // Fetch assistants when dialog opens
         google.script.run
           .withSuccessHandler(function(data) {
             const select = document.getElementById('assistant');
-            select.innerHTML = '';
+            
             if (data.error) {
               const errorDiv = document.getElementById('loadError');
               errorDiv.textContent = '❌ ' + data.error;
               errorDiv.style.display = 'block';
-              select.innerHTML = '<option value="">Failed to load assistants</option>';
+              $('#assistant').select2({
+                placeholder: 'Failed to load assistants',
+                allowClear: true,
+                width: '100%'
+              });
               return;
             }
+
+            // Clear the loading option
+            select.innerHTML = '';
+            
+            // Add empty option for placeholder
+            const emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            select.appendChild(emptyOption);
+            
+            // Add all assistants
             data.assistants.forEach(a => {
               const option = document.createElement('option');
               option.value = a.id;
               option.textContent = a.name;
               select.appendChild(option);
             });
+            
+            // Enable the select and update placeholder
+            select.disabled = false;
+            $('#assistant').select2({
+              placeholder: 'Select an assistant',
+              allowClear: true,
+              width: '100%',
+              language: {
+                noResults: function() {
+                  return 'No assistants found';
+                }
+              }
+            });
+            
+            // If no assistants were loaded, show a message
+            if (data.assistants.length === 0) {
+              $('#assistant').select2({
+                placeholder: 'No assistants available',
+                allowClear: true,
+                width: '100%'
+              });
+            }
           })
           .withFailureHandler(function(error) {
             const select = document.getElementById('assistant');
-            select.innerHTML = '<option value="">Failed to load assistants</option>';
             const errorDiv = document.getElementById('loadError');
             errorDiv.textContent = '❌ ' + error;
             errorDiv.style.display = 'block';
+            
+            $('#assistant').select2({
+              placeholder: 'Failed to load assistants',
+              allowClear: true,
+              width: '100%'
+            });
           })
           .fetchAssistants();
 
+        // Update the form submission to check for disabled state
         document.getElementById('myForm').addEventListener('submit', function(e) {
-          e.preventDefault();
-          document.getElementById('spinner').style.display = 'block';
-          document.getElementById('submitBtn').disabled = true;
-          document.getElementById('closeBtn').style.display = 'inline-block';
-          document.getElementById('status').innerHTML = '🤖 Processing cells...<br>Results will appear in cells to the right of your selection.<br>You can hide this dialog if you want';
-          google.script.run
-            .withSuccessHandler(function() {
-              document.getElementById('status').textContent = '🎉 All done!';
-              document.getElementById('spinner').style.display = 'none';
-            })
-            .withFailureHandler(function(error) {
-              document.getElementById('spinner').style.display = 'none';
-              document.getElementById('submitBtn').disabled = false;
-              document.getElementById('closeBtn').style.display = 'none';
-              document.getElementById('status').textContent = '❌ Oops! something went wrong: ' + error;
-            })
-            .processWithAssistant(
-              document.getElementById('assistant').value,
-              document.getElementById('instructions').value
-            );
-        });
+        e.preventDefault();
+        const assistantSelect = document.getElementById('assistant');
+        
+        if (assistantSelect.disabled) {
+          alert('Please wait for assistants to load');
+          return;
+        }
+        
+        if (!assistantSelect.value) {
+          alert('Please select an assistant');
+          return;
+        }
+
+        document.getElementById('spinner').style.display = 'block';
+        document.getElementById('submitBtn').style.display = 'none'; // Changed from disabled to display: none
+        document.getElementById('closeBtn').style.display = 'block';
+        document.getElementById('status').innerHTML = '🤖 Processing cells...<br>Results will appear in cells immediately to the right of your selection';
+        
+        google.script.run
+          .withSuccessHandler(function() {
+            google.script.host.close();
+          })
+          .withFailureHandler(function(error) {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('submitBtn').style.display = 'block'; // Show the submit button again on error
+            document.getElementById('closeBtn').style.display = 'none';
+            document.getElementById('status').textContent = '❌ Oops! something went wrong: ' + error;
+          })
+          .processWithAssistant(
+            assistantSelect.value,
+            document.getElementById('instructions').value
+          );
+});
       </script>
     `
   )
-    .setWidth(500)
-    .setHeight(600);
+    .setWidth(600)
+    .setHeight(400);
 
   ui.showModalDialog(htmlOutput, "Ask Assistant");
 }
