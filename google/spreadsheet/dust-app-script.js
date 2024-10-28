@@ -4,8 +4,8 @@ const WEBAPP_URL =
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Dust")
-    .addItem("Ask Assistant", "processSelected")
-    .addItem("Configure Credentials", "showCredentialsDialog")
+    .addItem("Call an Assistant", "processSelected")
+    .addItem("Setup", "showCredentialsDialog")
     .addToUi();
 }
 
@@ -14,21 +14,21 @@ function showCredentialsDialog() {
   var docProperties = PropertiesService.getDocumentProperties();
 
   var result = ui.prompt(
-    "Dust Configuration",
-    "Enter your API token:",
-    ui.ButtonSet.OK_CANCEL
-  );
-  if (result.getSelectedButton() == ui.Button.OK) {
-    docProperties.setProperty("dustToken", result.getResponseText());
-  }
-
-  result = ui.prompt(
-    "Dust Configuration",
-    "Enter your workspace ID:",
+    "Setup Dust",
+    "Your Dust Workspace ID:",
     ui.ButtonSet.OK_CANCEL
   );
   if (result.getSelectedButton() == ui.Button.OK) {
     docProperties.setProperty("workspaceId", result.getResponseText());
+  }
+
+  var result = ui.prompt(
+    "Setup Dust",
+    "Your Dust API Key:",
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (result.getSelectedButton() == ui.Button.OK) {
+    docProperties.setProperty("dustToken", result.getResponseText());
   }
 }
 
@@ -39,7 +39,7 @@ function processSelected() {
   const workspaceId = docProperties.getProperty("workspaceId");
 
   if (!token || !workspaceId) {
-    ui.alert("Please configure Dust credentials first");
+    ui.alert("Please configure your Dust credentials first");
     return;
   }
 
@@ -196,7 +196,9 @@ function processWithAssistant(assistantId, instructions) {
   const workspaceId = docProperties.getProperty("workspaceId");
 
   if (!token || !workspaceId) {
-    SpreadsheetApp.getUi().alert("Please configure Dust credentials first");
+    SpreadsheetApp.getUi().alert(
+      "Please configure your Dust credentials first"
+    );
     return;
   }
 
