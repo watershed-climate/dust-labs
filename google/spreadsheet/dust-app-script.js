@@ -190,14 +190,25 @@ function processSelected() {
           margin-right: 5px;
         }
         
-        #selectCellsBtn {
-          width: 85px;
-          padding: 8px 5px;
+        /* Update the existing button styles */
+        input[type="submit"], input[type="button"], #selectCellsBtn {
           background-color: #61A5FA;
           color: white;
           border: none;
-          border-radius: 4px;
+          padding: 10px 20px;
           cursor: pointer;
+          transition: background-color 0.2s ease;
+        }
+
+        input[type="submit"]:hover, input[type="button"]:hover, #selectCellsBtn:hover {
+          background-color: #4884d9;
+        }
+
+        /* Remove the duplicate #selectCellsBtn styles and merge them */
+        #selectCellsBtn {
+          width: 85px;
+          padding: 8px 5px;
+          border-radius: 4px;
           display: inline-block;
         }
         
