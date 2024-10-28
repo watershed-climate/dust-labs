@@ -341,19 +341,28 @@ function convertMarkdownToHtml(markdown) {
       userInput.value = "";
 
       // Fetch ticket comments
+      c; // Fetch ticket comments
       const commentsResponse = await client.request(
         `/api/v2/tickets/${ticket.id}/comments.json`
       );
       const comments = commentsResponse.comments;
 
-      // Collect unique user IDs from comments
+      // Collect unique user IDs from comments and filter out invalid IDs
       const userIds = [
-        ...new Set(comments.map((comment) => comment.author_id)),
+        ...new Set(
+          comments
+            .map((comment) => comment.author_id)
+            .filter((id) => id && id > 0) // Only keep positive numeric IDs
+        ),
       ];
 
-      // Fetch user details
+      // Fetch user details with error handling
       const userResponses = await Promise.all(
-        userIds.map((id) => client.request(`/api/v2/users/${id}.json`))
+        userIds.map((id) =>
+          client.request(`/api/v2/users/${id}.json`).catch((error) => ({
+            user: { id, name: "System Bot", role: "system" },
+          }))
+        )
       );
       const users = userResponses.map((response) => response.user);
       const userMap = users.reduce((map, user) => {
@@ -364,12 +373,13 @@ function convertMarkdownToHtml(markdown) {
       const formattedComments = comments
         .map((comment) => {
           const author = userMap[comment.author_id];
-          const authorName = author ? author.name : "Unknown";
-          const role = author
-            ? author.role === "end-user"
-              ? "Customer"
-              : "Agent"
-            : "Unknown";
+          let authorName = "System Bot";
+          let role = "system";
+
+          if (author) {
+            authorName = author.name;
+            role = author.role === "end-user" ? "Customer" : "Agent";
+          }
 
           // Redact customer name in comments if hideCustomerInformation is true
           const displayName =
