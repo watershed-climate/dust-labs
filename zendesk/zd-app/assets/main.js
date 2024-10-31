@@ -171,10 +171,14 @@ function convertMarkdownToHtml(markdown) {
       // Clear existing options
       selectElement.innerHTML = "";
 
-      // Always add options and show the select element if there are assistants
+      // Replace the existing assistants forEach loop and Select2 initialization with this:
       assistants.forEach((assistant) => {
         if (assistant && assistant.sId && assistant.name) {
           const option = new Option(`@${assistant.name}`, assistant.sId);
+          // Store the description as a data attribute
+          if (assistant.description) {
+            option.dataset.description = assistant.description;
+          }
           selectElement.appendChild(option);
         }
       });
@@ -183,6 +187,8 @@ function convertMarkdownToHtml(markdown) {
         .select2({
           placeholder: "Select an assistant",
           allowClear: true,
+          templateResult: formatAssistant, // Add custom formatting for dropdown items
+          templateSelection: formatAssistantSelection, // Add custom formatting for selected item
         })
         .on("change", (e) => {
           localStorage.setItem("selectedAssistant", e.target.value);
@@ -191,6 +197,48 @@ function convertMarkdownToHtml(markdown) {
             e.target.options[e.target.selectedIndex].text
           );
         });
+
+      // Add these new functions for formatting
+      function formatAssistant(assistant) {
+        if (!assistant.id) {
+          return assistant.text;
+        }
+
+        const option = assistant.element;
+        const description = option.dataset.description;
+
+        const createAssistantHTML = (name, description = "") => {
+          return $(`
+            <div class="assistant-option">
+              <div class="assistant-name">${name}</div>
+              ${
+                description
+                  ? `<div class="assistant-description">${description}</div>`
+                  : ""
+              }
+            </div>
+          `);
+        };
+
+        if (!description) {
+          return createAssistantHTML(assistant.text);
+        }
+
+        const truncatedDescription =
+          description.length > 100
+            ? `${description.substring(0, 100)}...`
+            : description;
+
+        return createAssistantHTML(assistant.text, truncatedDescription);
+      }
+
+      function formatAssistantSelection(assistant) {
+        if (!assistant.id) {
+          return assistant.text;
+        }
+        // Only show the name (without description) when selected
+        return assistant.text;
+      }
 
       // Always show the select wrapper
       selectWrapper.style.display = "block";
@@ -341,7 +389,6 @@ function convertMarkdownToHtml(markdown) {
       userInput.value = "";
 
       // Fetch ticket comments
-      c; // Fetch ticket comments
       const commentsResponse = await client.request(
         `/api/v2/tickets/${ticket.id}/comments.json`
       );
