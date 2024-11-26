@@ -236,7 +236,7 @@ async function upsertToNotion(assistant: any) {
   }
 }
 
-async function deleteOrphanedPages(assistants: DustAssistant[]) {
+async function processOrphanedPages(assistants: DustAssistant[]) {
   console.log('Checking for orphaned pages in Notion database...');
   const existingAssistantSIds = new Set(assistants.map(a => a.sId));
 
@@ -282,7 +282,7 @@ async function main() {
       await upsertToNotion(assistant);
     }
 
-    await deleteOrphanedPages(assistants);
+    await processOrphanedPages(assistants);
 
     console.log('All assistants processed successfully.');
   } catch (error) {
