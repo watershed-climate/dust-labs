@@ -29,6 +29,9 @@ DUST_WORKSPACE_ID=your_dust_workspace_id
 # destination
 NOTION_API_KEY=your_notion_api_key
 NOTION_DATABASE_ID=your_notion_database_id
+
+# configurable behavior
+NOTION_SOFT_DELETE=true # will mark 'dust.status' as 'deleted' instead of deleting the page
 ```
 
 Replace the placeholder values with your actual Dust and Notion settings.

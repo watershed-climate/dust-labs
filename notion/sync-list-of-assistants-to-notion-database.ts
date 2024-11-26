@@ -13,6 +13,9 @@ const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
+// configurable behavior
+const NOTION_SOFT_DELETE = process.env.NOTION_SOFT_DELETE === 'true' || false;
+
 const missingEnvVars = [
   ['DUST_API_KEY', DUST_API_KEY],
   ['DUST_WORKSPACE_ID', DUST_WORKSPACE_ID],
@@ -236,7 +239,7 @@ async function upsertToNotion(assistant: any) {
   }
 }
 
-async function processOrphanedPages(assistants: DustAssistant[]) {
+async function processOrphanedPages(assistants: DustAssistant[], softDelete: boolean) {
   console.log('Checking for orphaned pages in Notion database...');
   const existingAssistantSIds = new Set(assistants.map(a => a.sId));
 
@@ -251,15 +254,25 @@ async function processOrphanedPages(assistants: DustAssistant[]) {
         const pageSId = sIdProp.rich_text[0]?.plain_text;
         const assistantName = nameProp.title[0]?.plain_text;
         if (pageSId && !existingAssistantSIds.has(pageSId)) {
-          console.log(`Deleting assistant "${assistantName}" (${pageSId})`);
           await notion.comments.create({
             parent: { page_id: page.id },
             rich_text: [{ text: { content: `This assistant has been deleted on ${new Date().toLocaleString()} because it no longer appears as a shared assistant in Dust.` } }]
           });
-          await notion.pages.update({
-            page_id: page.id,
-            archived: true,
-          });
+          if (softDelete) {
+            console.log(`Soft-deleting assistant "${assistantName}" (${pageSId})`);
+            await notion.pages.update({
+              page_id: page.id,
+              properties: {
+                'dust.status': { select: { name: 'deleted' } },
+              },
+            });
+          } else {
+            console.log(`Deleting assistant "${assistantName}" (${pageSId})`);
+            await notion.pages.update({
+              page_id: page.id,
+              archived: true,
+            });
+          }
         }
       }
     }
@@ -282,7 +295,7 @@ async function main() {
       await upsertToNotion(assistant);
     }
 
-    await processOrphanedPages(assistants);
+    await processOrphanedPages(assistants, NOTION_SOFT_DELETE);
 
     console.log('All assistants processed successfully.');
   } catch (error) {
