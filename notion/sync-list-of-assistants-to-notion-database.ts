@@ -173,6 +173,7 @@ async function configureNotionDatabase() {
         'dust.sId': { rich_text: {} },
         ...(existingDatabaseConfig.properties['dust.status'] ? {} : { 'dust.status': { select: {} } }),
         'dust.url': { url: {} },
+        'dust.assistantDetailsUrl': { url: {} },
         'dust.visualizationEnabled': { checkbox: {} },
       }
     });
@@ -214,6 +215,7 @@ async function upsertToNotion(assistant: any) {
       'dust.sId': { rich_text: [ { text: { content: assistant.sId } } ] },
       'dust.status': { select: { name: assistant.status } },
       'dust.url': { url: `https://dust.tt/w/${DUST_WORKSPACE_ID}/assistant/new?assistant=${assistant.sId}` },
+      'dust.assistantDetailsUrl': { url: `https://dust.tt/w/${DUST_WORKSPACE_ID}/assistant/new?assistantDetails=${assistant.sId}` },
       'dust.visualizationEnabled': { checkbox: assistant.visualizationEnabled },
     }
 
