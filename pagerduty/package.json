@@ -1,0 +1,23 @@
+{
+  "name": "zendesk-to-dust",
+  "version": "1.0.0",
+  "description": "Script to import PagerDuty resources to Dust datasources",
+  "main": "index.ts",
+  "scripts": {
+    "schedules": "ts-node pd-schedules-to-dust.ts",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.0.3",
+    "p-limit": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.16.3",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  }
+}
