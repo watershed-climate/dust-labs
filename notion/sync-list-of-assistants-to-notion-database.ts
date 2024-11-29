@@ -13,6 +13,9 @@ const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
+// configurable behavior
+const NOTION_SOFT_DELETE = process.env.NOTION_SOFT_DELETE === 'true' || false;
+
 const missingEnvVars = [
   ['DUST_API_KEY', DUST_API_KEY],
   ['DUST_WORKSPACE_ID', DUST_WORKSPACE_ID],
@@ -110,6 +113,7 @@ async function getDustAssistants(): Promise<DustAssistant[]> {
           ...assistant,
           authorEmails: usage ? JSON.parse(usage.authorEmails) : [],
           messages: usage ? parseInt(usage.messages, 10) : 0,
+          distinctConversations: usage ? parseInt(usage.distinctConversations, 10) : 0,
           distinctUsersReached: usage ? parseInt(usage.distinctUsersReached, 10) : 0,
         };
       });
@@ -156,12 +160,13 @@ async function configureNotionDatabase() {
         ...(existingDatabaseConfig.properties.Tags ? { Tags: null } : {}), // Remove the 'Tags' property if it exists in the current configuration
         ...(existingDatabaseConfig.properties['dust.authors'] ? {} : { 'dust.authors': { multi_select: {} } }),
         'dust.description': { rich_text: {} },
+        'dust.distinctConversations': { number: {}, description: `Number of distinct conversations over the last 30 days.` },
         'dust.distinctUsersReached': { number: {}, description: `Number of distinct users over the last 30 days.` },
         'dust.id': { rich_text: {} },
         'dust.instructions': { rich_text: {} },
         'dust.lastVersionCreatedAt': { date: {}, description: "Last time the assistant configuration has been updated." },
         'dust.maxStepsPerRun': { number: {} },
-        'dust.messages': { number: {}, description: `Number of times the assistant was used over the last 30 days.` },
+        'dust.messages': { number: {}, description: `Number of messages the assistant has sent over the last 30 days.` },
         ...(existingDatabaseConfig.properties['dust.modelId'] ? {} : { 'dust.modelId': { select: {} } }),
         ...(existingDatabaseConfig.properties['dust.modelProviderId'] ? {} : { 'dust.modelProviderId': { select: {} } }),
         'dust.modelTemperature': { number: {} },
@@ -170,6 +175,7 @@ async function configureNotionDatabase() {
         'dust.sId': { rich_text: {} },
         ...(existingDatabaseConfig.properties['dust.status'] ? {} : { 'dust.status': { select: {} } }),
         'dust.url': { url: {} },
+        'dust.assistantDetailsUrl': { url: {} },
         'dust.visualizationEnabled': { checkbox: {} },
       }
     });
@@ -196,6 +202,7 @@ async function upsertToNotion(assistant: any) {
     const properties = {
       'dust.authors': { multi_select: assistant.authorEmails.map(author => ({ name: author })) },
       'dust.description': { rich_text: [ { text: { content: assistant.description } } ] },
+      'dust.distinctConversations': { number: assistant.distinctConversations },
       'dust.distinctUsersReached': { number: assistant.distinctUsersReached },
       'dust.id': { rich_text: [ { text: { content: assistant.id.toString() } } ] },
       'dust.instructions': { rich_text: [ { text: { content: (assistant.instructions || '').substring(0, 2000) } } ] },
@@ -211,6 +218,7 @@ async function upsertToNotion(assistant: any) {
       'dust.sId': { rich_text: [ { text: { content: assistant.sId } } ] },
       'dust.status': { select: { name: assistant.status } },
       'dust.url': { url: `https://dust.tt/w/${DUST_WORKSPACE_ID}/assistant/new?assistant=${assistant.sId}` },
+      'dust.assistantDetailsUrl': { url: `https://dust.tt/w/${DUST_WORKSPACE_ID}/assistant/new?assistantDetails=${assistant.sId}` },
       'dust.visualizationEnabled': { checkbox: assistant.visualizationEnabled },
     }
 
@@ -236,7 +244,7 @@ async function upsertToNotion(assistant: any) {
   }
 }
 
-async function deleteOrphanedPages(assistants: DustAssistant[]) {
+async function processOrphanedPages(assistants: DustAssistant[], softDelete: boolean) {
   console.log('Checking for orphaned pages in Notion database...');
   const existingAssistantSIds = new Set(assistants.map(a => a.sId));
 
@@ -251,15 +259,25 @@ async function deleteOrphanedPages(assistants: DustAssistant[]) {
         const pageSId = sIdProp.rich_text[0]?.plain_text;
         const assistantName = nameProp.title[0]?.plain_text;
         if (pageSId && !existingAssistantSIds.has(pageSId)) {
-          console.log(`Deleting assistant "${assistantName}" (${pageSId})`);
           await notion.comments.create({
             parent: { page_id: page.id },
             rich_text: [{ text: { content: `This assistant has been deleted on ${new Date().toLocaleString()} because it no longer appears as a shared assistant in Dust.` } }]
           });
-          await notion.pages.update({
-            page_id: page.id,
-            archived: true,
-          });
+          if (softDelete) {
+            console.log(`Soft-deleting assistant "${assistantName}" (${pageSId})`);
+            await notion.pages.update({
+              page_id: page.id,
+              properties: {
+                'dust.status': { select: { name: 'deleted' } },
+              },
+            });
+          } else {
+            console.log(`Deleting assistant "${assistantName}" (${pageSId})`);
+            await notion.pages.update({
+              page_id: page.id,
+              archived: true,
+            });
+          }
         }
       }
     }
@@ -282,7 +300,7 @@ async function main() {
       await upsertToNotion(assistant);
     }
 
-    await deleteOrphanedPages(assistants);
+    await processOrphanedPages(assistants, NOTION_SOFT_DELETE);
 
     console.log('All assistants processed successfully.');
   } catch (error) {
