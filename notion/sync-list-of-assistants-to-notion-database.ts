@@ -113,6 +113,7 @@ async function getDustAssistants(): Promise<DustAssistant[]> {
           ...assistant,
           authorEmails: usage ? JSON.parse(usage.authorEmails) : [],
           messages: usage ? parseInt(usage.messages, 10) : 0,
+          distinctConversations: usage ? parseInt(usage.distinctConversations, 10) : 0,
           distinctUsersReached: usage ? parseInt(usage.distinctUsersReached, 10) : 0,
         };
       });
@@ -159,12 +160,13 @@ async function configureNotionDatabase() {
         ...(existingDatabaseConfig.properties.Tags ? { Tags: null } : {}), // Remove the 'Tags' property if it exists in the current configuration
         ...(existingDatabaseConfig.properties['dust.authors'] ? {} : { 'dust.authors': { multi_select: {} } }),
         'dust.description': { rich_text: {} },
+        'dust.distinctConversations': { number: {}, description: `Number of distinct conversations over the last 30 days.` },
         'dust.distinctUsersReached': { number: {}, description: `Number of distinct users over the last 30 days.` },
         'dust.id': { rich_text: {} },
         'dust.instructions': { rich_text: {} },
         'dust.lastVersionCreatedAt': { date: {}, description: "Last time the assistant configuration has been updated." },
         'dust.maxStepsPerRun': { number: {} },
-        'dust.messages': { number: {}, description: `Number of times the assistant was used over the last 30 days.` },
+        'dust.messages': { number: {}, description: `Number of messages the assistant has sent over the last 30 days.` },
         ...(existingDatabaseConfig.properties['dust.modelId'] ? {} : { 'dust.modelId': { select: {} } }),
         ...(existingDatabaseConfig.properties['dust.modelProviderId'] ? {} : { 'dust.modelProviderId': { select: {} } }),
         'dust.modelTemperature': { number: {} },
@@ -200,6 +202,7 @@ async function upsertToNotion(assistant: any) {
     const properties = {
       'dust.authors': { multi_select: assistant.authorEmails.map(author => ({ name: author })) },
       'dust.description': { rich_text: [ { text: { content: assistant.description } } ] },
+      'dust.distinctConversations': { number: assistant.distinctConversations },
       'dust.distinctUsersReached': { number: assistant.distinctUsersReached },
       'dust.id': { rich_text: [ { text: { content: assistant.id.toString() } } ] },
       'dust.instructions': { rich_text: [ { text: { content: (assistant.instructions || '').substring(0, 2000) } } ] },
