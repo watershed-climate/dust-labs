@@ -1,19 +1,68 @@
-function convertMarkdownToHtml(markdown) {
-  return markdown
-    .replace(/^### (.*$)/gim, "<h3>$1</h3>")
-    .replace(/^## (.*$)/gim, "<h2>$1</h2>")
-    .replace(/^# (.*$)/gim, "<h1>$1</h1>")
-    .replace(/\*\*(.*)\*\*/gim, "<strong>$1</strong>")
-    .replace(/\*(.*)\*/gim, "<em>$1</em>")
-    .replace(/!\[(.*?)\]\((.*?)\)/gim, "<img alt='$1' src='$2' />")
-    .replace(/\[(.*?)\]\((.*?)\)/gim, "<a href='$2' target='_blank'>$1</a>")
-    .replace(/`(.*?)`/gim, "<code>$1</code>")
-    .replace(
-      /```([\s\S]*?)```/g,
-      (match, p1) => "<pre><code>" + p1.trim() + "</code></pre>"
-    )
-    .replace(/(?:\r\n|\r|\n)/g, "<br>")
-    .replace(/:cite\[[^\]]+\]/g, "");
+function convertMarkdownToHtml(markdown, conversationData) {
+  // Check if markdown is null or not a string
+  if (typeof markdown !== "string") {
+    console.error("Invalid markdown input:", markdown);
+    return ""; // Return an empty string or handle as needed
+  }
+
+  // Store conversation data
+  currentConversation = conversationData;
+
+  // Keep track of citation count
+  let citationCount = 0;
+  const citations = {};
+
+  // First pass: collect all citations and assign numbers
+  markdown.replace(/:cite\[([^\]]+)\]/g, (match, reference) => {
+    if (!citations[reference]) {
+      citationCount++;
+      citations[reference] = citationCount;
+    }
+  });
+
+  return (
+    markdown
+      .replace(/^### (.*$)/gim, "<h3>$1</h3>")
+      .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+      .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+      .replace(/\*\*(.*)\*\*/gim, "<strong>$1</strong>")
+      .replace(/\*(.*)\*/gim, "<em>$1</em>")
+      .replace(/!\[(.*?)\]\((.*?)\)/gim, "<img alt='$1' src='$2' />")
+      .replace(/\[(.*?)\]\((.*?)\)/gim, "<a href='$2' target='_blank'>$1</a>")
+      .replace(/`(.*?)`/gim, "<code>$1</code>")
+      .replace(
+        /```([\s\S]*?)```/g,
+        (match, p1) => "<pre><code>" + p1.trim() + "</code></pre>"
+      )
+      .replace(/(?:\r\n|\r|\n)/g, "<br>")
+      // Replace citations with numbered badges that are links
+      .replace(/:cite\[([^\]]+)\]/g, (match, reference) => {
+        const sourceUrl = getSourceUrlFromReference(reference);
+        return `<a href="${sourceUrl}" target="_blank" class="citation-badge">[${citations[reference]}]</a>`;
+      })
+  );
+}
+
+// Store conversation data at module level
+let currentConversation = null;
+
+// Helper function to get source URL from the conversation data
+function getSourceUrlFromReference(reference) {
+  if (!currentConversation) {
+    console.warn("No conversation data available");
+    return "#";
+  }
+
+  try {
+    const document =
+      currentConversation.content[1][0].actions[0].documents.find(
+        (doc) => doc.reference === reference
+      );
+    return document ? document.sourceUrl : "#";
+  } catch (error) {
+    console.error("Error finding source URL for reference:", error);
+    return "#";
+  }
 }
 
 (async function () {
@@ -171,7 +220,6 @@ function convertMarkdownToHtml(markdown) {
       // Clear existing options
       selectElement.innerHTML = "";
 
-      // Replace the existing assistants forEach loop and Select2 initialization with this:
       assistants.forEach((assistant) => {
         if (assistant && assistant.sId && assistant.name) {
           const option = new Option(`@${assistant.name}`, assistant.sId);
@@ -187,8 +235,8 @@ function convertMarkdownToHtml(markdown) {
         .select2({
           placeholder: "Select an assistant",
           allowClear: true,
-          templateResult: formatAssistant, // Add custom formatting for dropdown items
-          templateSelection: formatAssistantSelection, // Add custom formatting for selected item
+          templateResult: formatAssistant,
+          templateSelection: formatAssistantSelection,
         })
         .on("change", (e) => {
           localStorage.setItem("selectedAssistant", e.target.value);
@@ -198,7 +246,6 @@ function convertMarkdownToHtml(markdown) {
           );
         });
 
-      // Add these new functions for formatting
       function formatAssistant(assistant) {
         if (!assistant.id) {
           return assistant.text;
@@ -236,19 +283,15 @@ function convertMarkdownToHtml(markdown) {
         if (!assistant.id) {
           return assistant.text;
         }
-        // Only show the name (without description) when selected
         return assistant.text;
       }
 
-      // Always show the select wrapper
       selectWrapper.style.display = "block";
 
-      // If there's only one assistant, select it by default
       if (assistants.length === 1) {
         $(selectElement).val(assistants[0].sId).trigger("change");
       }
 
-      // Always show the input wrapper
       inputWrapper.style.display = "block";
     } else {
       throw new Error("Unexpected API response format");
@@ -303,7 +346,6 @@ function convertMarkdownToHtml(markdown) {
       const selectElement = document.getElementById("assistantSelect");
 
       if (selectElement.style.display === "none") {
-        // If select is hidden, use the stored single assistant ID and name
         selectedAssistantId = localStorage.getItem("selectedAssistant");
         selectedAssistantName = localStorage.getItem("selectedAssistantName");
       } else {
@@ -312,7 +354,6 @@ function convertMarkdownToHtml(markdown) {
           selectElement.options[selectElement.selectedIndex].text;
       }
 
-      // Check if we have a valid assistant selected
       if (!selectedAssistantId || !selectedAssistantName) {
         throw new Error(
           "No assistant selected. Please select an assistant before sending a message."
@@ -366,7 +407,6 @@ function convertMarkdownToHtml(markdown) {
         ticketInfo.customerEmail = data.ticket.requester.email || "Unknown";
       }
 
-      // Append the user message to the div
       dustResponse.innerHTML += `
       <div class="user-message" id="user-${uniqueId}">
         <strong>${userFullName}:</strong>
@@ -374,7 +414,6 @@ function convertMarkdownToHtml(markdown) {
       </div>
     `;
 
-      // Add spinner below user message with the selected assistant's name
       dustResponse.innerHTML += `
       <div id="${"assistant-" + uniqueId}" class="assistant-message">
         <h4>${selectedAssistantName}:</h4>
@@ -382,28 +421,23 @@ function convertMarkdownToHtml(markdown) {
       </div>
     `;
 
-      // Scroll to the bottom of the dustResponse div
       dustResponse.scrollTop = dustResponse.scrollHeight;
 
-      // Clear the user input
       userInput.value = "";
 
-      // Fetch ticket comments
       const commentsResponse = await client.request(
         `/api/v2/tickets/${ticket.id}/comments.json`
       );
       const comments = commentsResponse.comments;
 
-      // Collect unique user IDs from comments and filter out invalid IDs
       const userIds = [
         ...new Set(
           comments
             .map((comment) => comment.author_id)
-            .filter((id) => id && id > 0) // Only keep positive numeric IDs
+            .filter((id) => id && id > 0)
         ),
       ];
 
-      // Fetch user details with error handling
       const userResponses = await Promise.all(
         userIds.map((id) =>
           client.request(`/api/v2/users/${id}.json`).catch((error) => ({
@@ -428,7 +462,6 @@ function convertMarkdownToHtml(markdown) {
             role = author.role === "end-user" ? "Customer" : "Agent";
           }
 
-          // Redact customer name in comments if hideCustomerInformation is true
           const displayName =
             hideCustomerInformation && role === "Customer"
               ? "[Customer]"
@@ -501,12 +534,14 @@ function convertMarkdownToHtml(markdown) {
       const answerAgent = answer.configuration.name;
       const answerMessage = answer.content;
 
-      // Remove the spinner
       const assistantMessageElement = document.getElementById(
         `assistant-${uniqueId}`
       );
       if (assistantMessageElement) {
-        const htmlAnswer = convertMarkdownToHtml(answerMessage);
+        const htmlAnswer = convertMarkdownToHtml(
+          answerMessage,
+          response.conversation
+        );
         assistantMessageElement.innerHTML = `
           <h4>@${answerAgent}:</h4>
           <pre class="markdown-content">${htmlAnswer}</pre>
@@ -515,14 +550,12 @@ function convertMarkdownToHtml(markdown) {
         `;
       }
 
-      // Scroll to the bottom of the dustResponse div
       dustResponse.scrollTop = dustResponse.scrollHeight;
 
       await client.invoke("resize", { width: "100%", height: "600px" });
     } catch (error) {
-      console.error("Error sending ticket to Dust:", error);
+      console.error("Error receiving response from Dust:", error);
 
-      // Remove the spinner and show error message
       const assistantMessageElement = document.getElementById(
         `assistant-${uniqueId}`
       );
@@ -530,15 +563,15 @@ function convertMarkdownToHtml(markdown) {
         assistantMessageElement.innerHTML = `
         <h4>Error:</h4>
         <pre>${
-          error.message || "Error sending ticket to Dust. Please try again."
+          error.message ||
+          "Error receiving response from Dust. Please try again."
         }</pre>
       `;
       }
 
-      // Scroll to the bottom of the dustResponse div
       dustResponse.scrollTop = dustResponse.scrollHeight;
     } finally {
-      userInput.disabled = false; // Re-enable the textarea
+      userInput.disabled = false;
       sendToDustButton.innerHTML = `
       <svg viewBox="0 0 24 24">
         <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
