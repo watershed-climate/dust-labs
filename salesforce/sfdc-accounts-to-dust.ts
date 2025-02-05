@@ -132,31 +132,47 @@ async function connectToSalesforce(): Promise<jsforce.Connection> {
   let conn: jsforce.Connection;
   const connectionOptions = {
     loginUrl: SF_LOGIN_URL,
-    version: "53.0", // Specify a version
-    maxRequest: 5, // Limit concurrent requests
-    timeout: 60000, // 60 seconds timeout
+    version: "53.0",
+    maxRequest: 5,
+    timeout: 60000,
   };
 
   if (SF_USERNAME && SF_PASSWORD && SF_SECURITY_TOKEN) {
+    // Username-password flow remains the same
     conn = new jsforce.Connection(connectionOptions);
     await conn.login(SF_USERNAME, SF_PASSWORD + SF_SECURITY_TOKEN);
   } else if (SF_CLIENT_ID && SF_CLIENT_SECRET) {
-    conn = new jsforce.Connection({
-      ...connectionOptions,
-      oauth2: {
-        clientId: SF_CLIENT_ID,
-        clientSecret: SF_CLIENT_SECRET,
-        loginUrl: SF_LOGIN_URL,
-      },
-    });
-    await (conn.oauth2.authenticate as any)({
-      grant_type: "client_credentials",
-      client_id: SF_CLIENT_ID,
-      client_secret: SF_CLIENT_SECRET,
-    });
+    // Modified client credentials flow
+    try {
+      // First, get the access token
+      const response = await axios.post(
+        `${SF_LOGIN_URL}/services/oauth2/token`,
+        new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: SF_CLIENT_ID,
+          client_secret: SF_CLIENT_SECRET,
+        }),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+        }
+      );
+
+      // Create connection with the received access token
+      conn = new jsforce.Connection({
+        ...connectionOptions,
+        accessToken: response.data.access_token,
+        instanceUrl: response.data.instance_url,
+      });
+    } catch (error) {
+      console.error("Error authenticating with client credentials:", error);
+      throw error;
+    }
   } else {
     throw new Error("Insufficient authentication information provided");
   }
+
   console.log("Connected to Salesforce");
   console.log("Date of last update:", UPDATED_SINCE);
   return conn;
