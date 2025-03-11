@@ -13,7 +13,6 @@ import {
   User,
   IssueHistory,
   IssueRelation,
-  Document
 } from "@linear/sdk";
 
 dotenv.config();
@@ -136,11 +135,6 @@ async function getRecentlyUpdatedIssues(): Promise<Issue[]> {
       }
     }
     
-    if (LINEAR_LABEL) {
-      // We'll handle label filtering after fetching issues
-      // as the Linear API doesn't support direct filtering by label name
-    }
-    
     // Fetch issues with filters
     const issues = await linearClient.issues({
       filter
@@ -151,7 +145,7 @@ async function getRecentlyUpdatedIssues(): Promise<Issue[]> {
     let issueConnection: IssueConnection | undefined = issues;
     
     while (issueConnection) {
-      const nodes = await issueConnection.nodes;
+      const nodes = issueConnection.nodes;
       allIssues.push(...nodes);
       
       // Get next page if available
@@ -168,7 +162,7 @@ async function getRecentlyUpdatedIssues(): Promise<Issue[]> {
       filteredIssues = await Promise.all(
         allIssues.map(async issue => {
           const labels = await issue.labels();
-          const labelNodes = await labels.nodes;
+          const labelNodes = labels.nodes;
           return { issue, hasLabel: labelNodes.some((label: IssueLabel) => label.name === LINEAR_LABEL) };
         })
       ).then(results => 
@@ -198,7 +192,7 @@ function formatDescription(description: string | null): string {
 async function formatComments(issue: Issue): Promise<string> {
   try {
     const comments = await issue.comments();
-    const commentNodes = await comments.nodes;
+    const commentNodes = comments.nodes;
     
     if (commentNodes.length === 0) {
       return "No comments";
@@ -233,7 +227,7 @@ ${comment.body}${reactionText}`;
 async function formatAttachments(issue: Issue): Promise<string> {
   try {
     const attachments = await issue.attachments();
-    const attachmentNodes = await attachments.nodes;
+    const attachmentNodes = attachments.nodes;
     
     if (attachmentNodes.length === 0) {
       return "No attachments";
@@ -256,7 +250,7 @@ async function formatAttachments(issue: Issue): Promise<string> {
 async function formatLabels(issue: Issue): Promise<string> {
   try {
     const labels = await issue.labels();
-    const labelNodes = await labels.nodes;
+    const labelNodes = labels.nodes;
     
     if (labelNodes.length === 0) {
       return "No labels";
@@ -275,7 +269,7 @@ async function formatLabels(issue: Issue): Promise<string> {
 async function formatRelations(issue: Issue): Promise<string> {
   try {
     const relations = await issue.relations();
-    const relationNodes = await relations.nodes;
+    const relationNodes = relations.nodes;
     
     if (relationNodes.length === 0) {
       return "No relations";
@@ -304,7 +298,7 @@ async function formatRelations(issue: Issue): Promise<string> {
 async function formatHistory(issue: Issue): Promise<string> {
   try {
     const history = await issue.history();
-    const historyNodes = await history.nodes;
+    const historyNodes = history.nodes;
     
     if (historyNodes.length === 0) {
       return "No history";
@@ -337,7 +331,7 @@ async function formatHistory(issue: Issue): Promise<string> {
 async function formatSubscribers(issue: Issue): Promise<string> {
   try {
     const subscribers = await issue.subscribers();
-    const subscriberNodes = await subscribers.nodes;
+    const subscriberNodes = subscribers.nodes;
     
     if (subscriberNodes.length === 0) {
       return "No subscribers";
@@ -361,7 +355,7 @@ async function formatIssueHierarchy(issue: Issue): Promise<{parent: string, chil
     
     // Get children/sub-issues
     const children = await issue.children();
-    const childNodes = await children.nodes;
+    const childNodes = children.nodes;
     
     let childrenInfo = "No sub-issues";
     if (childNodes.length > 0) {
@@ -426,32 +420,6 @@ async function formatMilestone(issue: Issue): Promise<string> {
 }
 
 /**
- * Format linked documents
- */
-async function formatDocuments(issue: Issue): Promise<string> {
-  try {
-    const documents = await linearClient.documents();
-    const documentNodes = documents.nodes;
-    
-    // Filter documents that mention this issue
-    const linkedDocs = documentNodes.filter((doc: Document) => 
-      doc.content && doc.content.includes(issue.id)
-    );
-    
-    if (linkedDocs.length === 0) {
-      return "No linked documents";
-    }
-    
-    return linkedDocs.map((doc: Document) => 
-      `${doc.title}'}`
-    ).join("\n");
-  } catch (error) {
-    console.error("Error formatting documents:", error);
-    return "Error retrieving documents";
-  }
-}
-
-/**
  * Get organization information
  */
 async function getOrganizationInfo(): Promise<string> {
@@ -489,7 +457,6 @@ async function upsertToDustDatasource(issue: Issue) {
       issueHierarchy,
       cycle,
       milestone,
-      documents,
       organizationInfo
     ] = await Promise.all([
       issue.team,
@@ -506,7 +473,6 @@ async function upsertToDustDatasource(issue: Issue) {
       formatIssueHierarchy(issue),
       formatCycle(issue),
       formatMilestone(issue),
-      formatDocuments(issue),
       getOrganizationInfo()
     ]);
     
@@ -554,9 +520,6 @@ ${issueHierarchy.children}
 
 Issue Relations:
 ${relations}
-
-Linked Documents:
-${documents}
 
 Attachments:
 ${attachments}
