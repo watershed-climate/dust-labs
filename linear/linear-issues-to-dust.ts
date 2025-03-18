@@ -4,45 +4,56 @@ import Bottleneck from "bottleneck";
 import { 
   LinearClient, 
   Issue, 
-  IssueConnection, 
   Comment, 
   Attachment, 
   IssueLabel, 
-  Team, 
-  WorkflowState, 
+  WorkflowState,
   User,
   IssueHistory,
   IssueRelation,
+  LinearFetch,
 } from "@linear/sdk";
 
 dotenv.config();
 
-const DEFAULT_UPDATED_SINCE = "24h"; // Default to 24 hours
-const DEFAULT_DUST_RATE_LIMIT = 120; // requests per minute
-const DEFAULT_LINEAR_MAX_CONCURRENT = 5; // concurrent requests
+// Constants
+const LINEAR_MAX_BATCH_SIZE = 50;
+const LINEAR_RATE_LIMIT_PER_HOUR = 1500;
 
 // Linear API credentials and query parameters
 const LINEAR_API_KEY = process.env.LINEAR_API_KEY;
-const LINEAR_UPDATED_SINCE = process.env.LINEAR_UPDATED_SINCE || DEFAULT_UPDATED_SINCE;
+const LINEAR_UPDATED_SINCE = process.env.LINEAR_UPDATED_SINCE;
 const LINEAR_TEAM_KEY = process.env.LINEAR_TEAM_KEY;
 const LINEAR_PROJECT_ID = process.env.LINEAR_PROJECT_ID;
 const LINEAR_STATE = process.env.LINEAR_STATE;
 const LINEAR_LABEL = process.env.LINEAR_LABEL;
+
+// Optional data fetching configuration
+const FETCH_CONFIG = {
+  comments: process.env.FETCH_COMMENTS === 'true',
+  attachments: process.env.FETCH_ATTACHMENTS == 'true',
+  labels: process.env.FETCH_LABELS == 'true',
+  relations: process.env.FETCH_RELATIONS == 'true',
+  history: process.env.FETCH_HISTORY == 'true',
+  subscribers: process.env.FETCH_SUBSCRIBERS == 'true',
+  hierarchy: process.env.FETCH_HIERARCHY == 'true', // parent and children
+  cycle: process.env.FETCH_CYCLE == 'true',
+  organization: process.env.FETCH_ORGANIZATION == 'true',
+};
 
 // Dust API credentials
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 
-// Rate limiting configuration
-const DUST_RATE_LIMIT = parseInt(process.env.DUST_RATE_LIMIT || DEFAULT_DUST_RATE_LIMIT.toString(), 10);
-const LINEAR_MAX_CONCURRENT = parseInt(process.env.LINEAR_MAX_CONCURRENT || DEFAULT_LINEAR_MAX_CONCURRENT.toString(), 10);
-
+// Validate required environment variables
 const requiredEnvVars = [
   'LINEAR_API_KEY',
   'DUST_API_KEY',
   'DUST_WORKSPACE_ID',
-  'DUST_DATASOURCE_ID'
+  'DUST_DATASOURCE_ID',
+  'DUST_RATE_LIMIT',
+  'LINEAR_MAX_CONCURRENT'
 ];
 
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
@@ -52,6 +63,10 @@ if (missingEnvVars.length > 0) {
     `Please provide values for the following environment variables: ${missingEnvVars.join(', ')}`
   );
 }
+
+// Rate limiting configuration
+const DUST_RATE_LIMIT = parseInt(process.env.DUST_RATE_LIMIT as string);
+const LINEAR_MAX_CONCURRENT = parseInt(process.env.LINEAR_MAX_CONCURRENT as string);
 
 // Initialize Linear client
 const linearClient = new LinearClient({
@@ -69,47 +84,66 @@ const dustApi = axios.create({
   maxBodyLength: Infinity,
 });
 
+// Add rate limiting for Linear API
+const linearLimiter = new Bottleneck({
+  maxConcurrent: LINEAR_MAX_CONCURRENT,
+  minTime: 1000 / (LINEAR_RATE_LIMIT_PER_HOUR * 0.95), // Slightly below the limit
+  reservoir: LINEAR_RATE_LIMIT_PER_HOUR,
+  reservoirRefreshInterval: 60 * 60 * 1000, // 1 hour
+  reservoirRefreshAmount: LINEAR_RATE_LIMIT_PER_HOUR
+});
+
+// Interface definitions
+interface Section {
+  prefix?: string | null;
+  content?: string | null;
+  sections: Section[];
+}
+
+/**
+ * Wrap Linear API calls with rate limiting
+ */
+function safeLinearFetch<T>(fetchFn: () => LinearFetch<T> | undefined): Promise<T> {
+  return linearLimiter.schedule(() => {
+    const linearFetch = fetchFn();
+    if (!linearFetch) {
+      return Promise.resolve(undefined as T);
+    }
+    return linearFetch.then((result) => result);
+  });
+}
+
 /**
  * Get issues updated in the specified time period with optional filters
  */
-async function getRecentlyUpdatedIssues(): Promise<Issue[]> {
+async function getIssues(): Promise<Issue[]> {
   console.log(`Fetching Linear issues with the following filters:`);
-  console.log(`- Updated in the last: ${LINEAR_UPDATED_SINCE}`);
+  if (LINEAR_UPDATED_SINCE) console.log(`- Updated since: ${LINEAR_UPDATED_SINCE}`);
   if (LINEAR_TEAM_KEY) console.log(`- Team: ${LINEAR_TEAM_KEY}`);
   if (LINEAR_PROJECT_ID) console.log(`- Project ID: ${LINEAR_PROJECT_ID}`);
   if (LINEAR_STATE) console.log(`- State: ${LINEAR_STATE}`);
   if (LINEAR_LABEL) console.log(`- Label: ${LINEAR_LABEL}`);
   
   try {
+    const filter: Record<string, any> = {};
+
     // Calculate the date for the updated since filter
-    const now = new Date();
-    let updatedSince: Date;
-    
-    if (LINEAR_UPDATED_SINCE.endsWith('h')) {
-      const hours = parseInt(LINEAR_UPDATED_SINCE.slice(0, -1), 10);
-      updatedSince = new Date(now.getTime() - hours * 60 * 60 * 1000);
-    } else if (LINEAR_UPDATED_SINCE.endsWith('d')) {
-      const days = parseInt(LINEAR_UPDATED_SINCE.slice(0, -1), 10);
-      updatedSince = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-    } else {
-      // Default to 24 hours if format is invalid
-      updatedSince = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    if (LINEAR_UPDATED_SINCE) {
+      const updatedSince = new Date(process.env.LINEAR_UPDATED_SINCE as string);
+  
+      if (isNaN(updatedSince.getTime())) {
+        throw new Error(
+          `Invalid LINEAR_UPDATED_SINCE date format: "${process.env.LINEAR_UPDATED_SINCE}". Expected format: YYYY-MM-DD`
+        );
+      }
+
+      filter.updatedAt = { gte: updatedSince.toISOString() };
     }
-    
-    // Format date for Linear API (ISO string)
-    const updatedSinceStr = updatedSince.toISOString();
-    
-    // Build filter object
-    const filter: Record<string, any> = {
-      updatedAt: { gte: updatedSinceStr }
-    };
-    
+
     // Add optional filters if provided
     if (LINEAR_TEAM_KEY) {
-      // Get team by key first
-      const teams = await linearClient.teams();
-      const teamNodes = teams.nodes;
-      const team = teamNodes.find((t: Team) => t.key === LINEAR_TEAM_KEY);
+      // Get team by key directly
+      const team = await safeLinearFetch(() => linearClient.team(LINEAR_TEAM_KEY));
       
       if (team) {
         filter.team = { id: { eq: team.id } };
@@ -124,7 +158,7 @@ async function getRecentlyUpdatedIssues(): Promise<Issue[]> {
     
     if (LINEAR_STATE) {
       // Get state by name
-      const states = await linearClient.workflowStates();
+      const states = await safeLinearFetch(() => linearClient.workflowStates());
       const stateNodes = states.nodes;
       const state = stateNodes.find((s: WorkflowState) => s.name === LINEAR_STATE);
       
@@ -135,27 +169,26 @@ async function getRecentlyUpdatedIssues(): Promise<Issue[]> {
       }
     }
     
-    // Fetch issues with filters
-    const issues = await linearClient.issues({
-      filter
-    });
-    
     // Paginate through all results
     const allIssues: Issue[] = [];
-    let issueConnection: IssueConnection | undefined = issues;
+    let hasNextPage = true;
+    let endCursor: string | undefined;
     
-    while (issueConnection) {
-      const nodes = issueConnection.nodes;
-      allIssues.push(...nodes);
+    while (hasNextPage) {
+      const issueConnection = await safeLinearFetch(() => 
+        linearClient.issues({
+          filter,
+          first: LINEAR_MAX_BATCH_SIZE,
+          after: endCursor
+        })
+      );
       
-      // Get next page if available
-      if (issueConnection.pageInfo.hasNextPage) {
-        issueConnection = await issueConnection.fetchNext();
-      } else {
-        issueConnection = undefined;
-      }
+      allIssues.push(...issueConnection.nodes);
+      
+      hasNextPage = issueConnection.pageInfo.hasNextPage;
+      endCursor = issueConnection.pageInfo.endCursor;
     }
-    
+
     // Apply label filter if specified
     let filteredIssues = allIssues;
     if (LINEAR_LABEL) {
@@ -163,7 +196,10 @@ async function getRecentlyUpdatedIssues(): Promise<Issue[]> {
         allIssues.map(async issue => {
           const labels = await issue.labels();
           const labelNodes = labels.nodes;
-          return { issue, hasLabel: labelNodes.some((label: IssueLabel) => label.name === LINEAR_LABEL) };
+          return { 
+            issue, 
+            hasLabel: labelNodes.some((label: IssueLabel) => label.name === LINEAR_LABEL) 
+          };
         })
       ).then(results => 
         results.filter(result => result.hasLabel).map(result => result.issue)
@@ -187,20 +223,28 @@ function formatDescription(description: string | null): string {
 }
 
 /**
- * Format issue comments
+ * Format issue comments (if enabled)
  */
-async function formatComments(issue: Issue): Promise<string> {
+async function formatComments(issue: Issue): Promise<Section[] | null> {
+  if (!FETCH_CONFIG.comments) {
+    return null;
+  }
+
   try {
-    const comments = await issue.comments();
+    const comments = await safeLinearFetch(() => issue.comments());
     const commentNodes = comments.nodes;
     
     if (commentNodes.length === 0) {
-      return "No comments";
+      return [{
+        prefix: "Comments",
+        content: "No comments",
+        sections: []
+      }];
     }
     
-    const formattedComments = await Promise.all(
+    const commentSections = await Promise.all(
       commentNodes.map(async (comment: Comment) => {
-        const user = await comment.user;
+        const user = await safeLinearFetch(() => comment.user);
         const createdAt = comment.createdAt;
         
         // Use the reactionData attribute to get reactions
@@ -209,178 +253,276 @@ async function formatComments(issue: Issue): Promise<string> {
           ? `\nReactions: ${Object.entries(reactionData).map(([key, value]) => `${key}: ${value}`).join(', ')}`
           : '';
         
-        return `[${createdAt.toISOString()}] Author: ${user?.name || 'Unknown'} (${user?.email || 'No email'})
-${comment.body}${reactionText}`;
+        return {
+          prefix: `Comment by ${user?.name || 'Unknown'} (${user?.email || 'No email'}) - ${createdAt.toISOString()}`,
+          content: `${comment.body}${reactionText}`,
+          sections: []
+        } as Section;
       })
     );
     
-    return formattedComments.join("\n");
+    return [{
+      prefix: "Comments",
+      content: null,
+      sections: commentSections
+    }];
   } catch (error) {
     console.error("Error formatting comments:", error);
-    return "Error retrieving comments";
+    throw error;
   }
 }
 
 /**
- * Format issue attachments
+ * Format issue attachments (if enabled)
  */
-async function formatAttachments(issue: Issue): Promise<string> {
+async function formatAttachments(issue: Issue): Promise<Section | null> {
+  if (!FETCH_CONFIG.attachments) {
+    return null;
+  }
+
   try {
-    const attachments = await issue.attachments();
+    const attachments = await safeLinearFetch(() => issue.attachments());
     const attachmentNodes = attachments.nodes;
     
     if (attachmentNodes.length === 0) {
-      return "No attachments";
+      return {
+        prefix: "Attachments",
+        content: "No attachments",
+        sections: []
+      };
     }
     
-    const formattedAttachments = attachmentNodes.map((attachment: Attachment) => 
-      `${attachment.title}: ${attachment.url}`
-    );
+    const attachmentSections = attachmentNodes.map((attachment: Attachment) => ({
+      prefix: attachment.title,
+      content: attachment.url,
+      sections: []
+    }));
     
-    return formattedAttachments.join("\n");
+    return {
+      prefix: "Attachments",
+      content: null,
+      sections: attachmentSections
+    };
   } catch (error) {
     console.error("Error formatting attachments:", error);
-    return "Error retrieving attachments";
+    throw error;
   }
 }
 
 /**
- * Format issue labels
+ * Format issue labels (if enabled)
  */
 async function formatLabels(issue: Issue): Promise<string> {
+  if (!FETCH_CONFIG.labels) {
+    return "";
+  }
+
   try {
-    const labels = await issue.labels();
+    const labels = await safeLinearFetch(() => issue.labels());
     const labelNodes = labels.nodes;
     
     if (labelNodes.length === 0) {
       return "No labels";
     }
     
-    return labelNodes.map((label: IssueLabel) => `${label.name}${label.description ? ` (${label.description})` : ''}`).join(", ");
+    return labelNodes.map((label: IssueLabel) => 
+      `${label.name}${label.description ? ` (${label.description})` : ''}`
+    ).join(", ");
   } catch (error) {
     console.error("Error formatting labels:", error);
-    return "Error retrieving labels";
+    throw error;
   }
 }
 
 /**
- * Format issue relations
+ * Format issue relations (if enabled)
  */
-async function formatRelations(issue: Issue): Promise<string> {
+async function formatRelations(issue: Issue): Promise<Section | null> {
+  if (!FETCH_CONFIG.relations) {
+    return null;
+  }
+
   try {
-    const relations = await issue.relations();
+    const relations = await safeLinearFetch(() => issue.relations());
     const relationNodes = relations.nodes;
     
     if (relationNodes.length === 0) {
-      return "No relations";
+      return {
+        prefix: "Issue Relations",
+        content: "No relations",
+        sections: []
+      };
     }
     
-    const formattedRelations = await Promise.all(
+    const relationSections = await Promise.all(
       relationNodes.map(async (relation: IssueRelation) => {
-        const relatedIssue = await relation.relatedIssue;
+        const relatedIssue = await safeLinearFetch(() => relation.relatedIssue);
         if (!relatedIssue) {
-          return 'Related issue not found';
+          return {
+            prefix: relation.type,
+            content: 'Related issue not found',
+            sections: []
+          };
         }
-        return `${relation.type}: ${relatedIssue.identifier} - ${relatedIssue.title}`;
+        return {
+          prefix: relation.type,
+          content: `${relatedIssue.identifier} - ${relatedIssue.title}`,
+          sections: []
+        };
       })
     );
     
-    return formattedRelations.join("\n");
+    return {
+      prefix: "Issue Relations",
+      content: null,
+      sections: relationSections
+    };
   } catch (error) {
     console.error("Error formatting relations:", error);
-    return "Error retrieving relations";
+    throw error;
   }
 }
 
 /**
- * Format issue history
+ * Format issue history (if enabled)
  */
-async function formatHistory(issue: Issue): Promise<string> {
+async function formatHistory(issue: Issue): Promise<Section | null> {
+  if (!FETCH_CONFIG.history) {
+    return null;
+  }
+
   try {
-    const history = await issue.history();
+    const history = await safeLinearFetch(() => issue.history());
     const historyNodes = history.nodes;
     
     if (historyNodes.length === 0) {
-      return "No history";
+      return {
+        prefix: "Recent History",
+        content: "No history",
+        sections: []
+      };
     }
     
     // Get the 10 most recent history items
     const recentHistory = historyNodes.slice(0, 10);
     
-    const formattedHistory = await Promise.all(
+    const historySections = await Promise.all(
       recentHistory.map(async (historyItem: IssueHistory) => {
-        const user = await historyItem.actor;
-        return `[${historyItem.createdAt.toISOString()}] ${user?.name || 'System'}: ${
-          historyItem.fromState && historyItem.toState 
-            ? `Changed status from "${historyItem.fromState}" to "${historyItem.toState}"`
-            : 'Made changes'
-        }`;
+        const user = await safeLinearFetch(() => historyItem.actor);
+        const action = historyItem.fromState && historyItem.toState 
+          ? `Changed status from "${historyItem.fromState}" to "${historyItem.toState}"`
+          : 'Made changes';
+        
+        return {
+          prefix: `${historyItem.createdAt.toISOString()} - ${user?.name || 'System'}`,
+          content: action,
+          sections: []
+        };
       })
     );
     
-    return formattedHistory.join("\n");
+    return {
+      prefix: "Recent History",
+      content: null,
+      sections: historySections
+    };
   } catch (error) {
     console.error("Error formatting history:", error);
-    return "Error retrieving history";
+    throw error;
   }
 }
 
 /**
- * Format issue subscribers
+ * Format issue subscribers (if enabled)
  */
 async function formatSubscribers(issue: Issue): Promise<string> {
+  if (!FETCH_CONFIG.subscribers) {
+    return "";
+  }
+
   try {
-    const subscribers = await issue.subscribers();
+    const subscribers = await safeLinearFetch(() => issue.subscribers());
     const subscriberNodes = subscribers.nodes;
     
     if (subscriberNodes.length === 0) {
       return "No subscribers";
     }
     
-    return subscriberNodes.map((user: User) => `${user.name} (${user.email})`).join(", ");
+    return subscriberNodes.map((user: User) => 
+      `${user.name} (${user.email})`
+    ).join(", ");
   } catch (error) {
     console.error("Error formatting subscribers:", error);
-    return "Error retrieving subscribers";
+    throw error;
   }
 }
 
 /**
- * Format parent and sub-issues
+ * Format parent issue (if enabled)
  */
-async function formatIssueHierarchy(issue: Issue): Promise<{parent: string, children: string}> {
+async function formatParentIssue(issue: Issue): Promise<Section | null> {
+  if (!FETCH_CONFIG.hierarchy) {
+    return null;
+  }
+
   try {
-    // Get parent issue if exists
-    const parent = await issue.parent;
-    const parentInfo = parent ? `${parent.identifier}: ${parent.title}` : "No parent issue";
+    const parent = await safeLinearFetch(() => issue.parent);
     
-    // Get children/sub-issues
-    const children = await issue.children();
+    return {
+      prefix: "Parent Issue",
+      content: parent ? `${parent.identifier}: ${parent.title}` : "No parent issue",
+      sections: []
+    };
+  } catch (error) {
+    console.error("Error formatting parent issue:", error);
+    throw error;
+  }
+}
+
+/**
+ * Format child issues (if enabled)
+ */
+async function formatChildIssues(issue: Issue): Promise<Section | null> {
+  if (!FETCH_CONFIG.hierarchy) {
+    return null;
+  }
+
+  try {
+    const children = await safeLinearFetch(() => issue.children());
     const childNodes = children.nodes;
     
-    let childrenInfo = "No sub-issues";
+    const childSections: Section[] = [];
     if (childNodes.length > 0) {
-      childrenInfo = childNodes.map((child: Issue) => `${child.identifier}: ${child.title}`).join("\n");
+      childNodes.forEach((child: Issue) => {
+        childSections.push({
+          prefix: child.identifier,
+          content: child.title,
+          sections: []
+        });
+      });
     }
     
     return {
-      parent: parentInfo,
-      children: childrenInfo
+      prefix: "Sub-Issues",
+      content: childNodes.length === 0 ? "No sub-issues" : null,
+      sections: childSections
     };
   } catch (error) {
-    console.error("Error formatting issue hierarchy:", error);
-    return {
-      parent: "Error retrieving parent issue",
-      children: "Error retrieving sub-issues"
-    };
+    console.error("Error formatting child issues:", error);
+    throw error;
   }
 }
 
 /**
- * Format cycle information
+ * Format cycle information (if enabled)
  */
 async function formatCycle(issue: Issue): Promise<string> {
+  if (!FETCH_CONFIG.cycle) {
+    return "";
+  }
+
   try {
-    const cycle = await issue.cycle;
+    const cycle = await safeLinearFetch(() => issue.cycle);
     
     if (!cycle) {
       return "Not assigned to any cycle";
@@ -389,163 +531,28 @@ async function formatCycle(issue: Issue): Promise<string> {
     return `${cycle.name} (${cycle.startsAt.toISOString()} to ${cycle.endsAt.toISOString()})`;
   } catch (error) {
     console.error("Error formatting cycle:", error);
-    return "Error retrieving cycle";
+    throw error;
   }
 }
 
 /**
- * Format milestone information
+ * Get organization information (if enabled)
  */
-async function formatMilestone(issue: Issue): Promise<string> {
-  try {
-    // Get project first
-    const project = await issue.project;
-    
-    if (!project) {
-      return "Not associated with any milestone";
-    }
-    
-    // Get milestone from project
-    const milestone = await project;
-    
-    if (!milestone) {
-      return "Project not associated with any milestone";
-    }
-    
-    return `${milestone.name} (${milestone.targetDate ? milestone.targetDate.toISOString().split('T')[0] : 'No target date'})`;
-  } catch (error) {
-    console.error("Error formatting milestone:", error);
-    return "Error retrieving milestone";
+async function getOrganizationInfo(): Promise<Section | null> {
+  if (!FETCH_CONFIG.organization) {
+    return null;
   }
-}
 
-/**
- * Get organization information
- */
-async function getOrganizationInfo(): Promise<string> {
   try {
-    const organization = await linearClient.organization;
+    const organization = await safeLinearFetch(() => linearClient.organization);
     
-    return `
-Organization: ${organization.name}
-Created: ${organization.createdAt.toISOString()}
-`;
+    return {
+      prefix: "Organization",
+      content: `${organization.name} (Created: ${organization.createdAt.toISOString()})`,
+      sections: []
+    };
   } catch (error) {
     console.error("Error getting organization info:", error);
-    return "Error retrieving organization information";
-  }
-}
-
-/**
- * Upsert issue to Dust datasource
- */
-async function upsertToDustDatasource(issue: Issue) {
-  try {
-    // Get related data
-    const [
-      team, 
-      creator, 
-      assignee, 
-      project, 
-      state, 
-      comments, 
-      attachments, 
-      labels,
-      relations,
-      history,
-      subscribers,
-      issueHierarchy,
-      cycle,
-      milestone,
-      organizationInfo
-    ] = await Promise.all([
-      issue.team,
-      issue.creator,
-      issue.assignee,
-      issue.project,
-      issue.state,
-      formatComments(issue),
-      formatAttachments(issue),
-      formatLabels(issue),
-      formatRelations(issue),
-      formatHistory(issue),
-      formatSubscribers(issue),
-      formatIssueHierarchy(issue),
-      formatCycle(issue),
-      formatMilestone(issue),
-      getOrganizationInfo()
-    ]);
-    
-    const documentId = `linear-issue-${issue.id}`;
-    
-    // Format the content for Dust
-    const content = `
-${organizationInfo}
-
-Issue ID: ${issue.id}
-Number: ${issue.number}
-Identifier: ${issue.identifier}
-Title: ${issue.title}
-URL: ${issue.url}
-Description:
-${formatDescription(issue.description ?? 'No description provided')}
-
-Team: ${team?.name || 'No team'} (${team?.key || 'No key'})
-Project: ${project?.name || 'No project'}
-State: ${state?.name || 'Unknown state'} (${state?.type || 'Unknown type'})
-Priority: ${issue.priority} (${getPriorityLabel(issue.priority)})
-Creator: ${creator?.name || 'Unknown'} (${creator?.email || 'No email'})
-Assignee: ${assignee?.name || 'Unassigned'} (${assignee?.email || 'No email'})
-Created: ${issue.createdAt.toISOString()}
-Updated: ${issue.updatedAt.toISOString()}
-Started At: ${issue.startedAt ? issue.startedAt.toISOString() : 'Not started'}
-Completed At: ${issue.completedAt ? issue.completedAt.toISOString() : 'Not completed'}
-Canceled At: ${issue.canceledAt ? issue.canceledAt.toISOString() : 'Not canceled'}
-Auto Closed At: ${issue.autoClosedAt ? issue.autoClosedAt.toISOString() : 'Not auto-closed'}
-Auto Archived At: ${issue.autoArchivedAt ? issue.autoArchivedAt.toISOString() : 'Not auto-archived'}
-Due Date: ${issue.dueDate || 'No due date'}
-Estimate: ${issue.estimate !== null ? issue.estimate : 'No estimate'} points
-Completed Estimate: ${issue.completedAt ? (issue.estimate !== null ? issue.estimate : 'No estimate') : 'Not completed'}
-Snoozed Until: ${issue.snoozedUntilAt ? issue.snoozedUntilAt.toISOString() : 'Not snoozed'}
-Cycle: ${cycle}
-Milestone: ${milestone}
-Sub-Issue Count: ${issue.children?.length ?? 0}
-Labels: ${labels}
-Subscribers: ${subscribers}
-
-Parent Issue: ${issueHierarchy.parent}
-
-Sub-Issues:
-${issueHierarchy.children}
-
-Issue Relations:
-${relations}
-
-Attachments:
-${attachments}
-
-Recent History:
-${history}
-
-Comments:
-${comments}
-`.trim();
-
-    // Upsert to Dust
-    await dustApi.post(
-      `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
-      {
-        text: content,
-        title: issue.title,
-      }
-    );
-    
-    console.log(`Upserted issue ${issue.identifier} to Dust datasource`);
-  } catch (error) {
-    console.error(
-      `Error upserting issue ${issue.identifier} to Dust datasource:`,
-      error
-    );
     throw error;
   }
 }
@@ -573,11 +580,164 @@ function getPriorityLabel(priority: number | null): string {
 }
 
 /**
+ * Upsert issue to Dust datasource using sections
+ */
+async function upsertToDustDatasource(issue: Issue) {
+  try {
+    // Get related data - using rate-limited calls and respecting config
+    const [
+      team, 
+      creator, 
+      assignee, 
+      project, 
+      state, 
+      comments, 
+      attachments, 
+      labels,
+      relations,
+      history,
+      subscribers,
+      parentIssue,
+      childIssues,
+      cycle,
+      organizationInfo
+    ] = await Promise.all([
+      safeLinearFetch(() => issue.team),
+      safeLinearFetch(() => issue.creator),
+      safeLinearFetch(() => issue.assignee),
+      safeLinearFetch(() => issue.project),
+      safeLinearFetch(() => issue.state),
+      formatComments(issue),
+      formatAttachments(issue),
+      formatLabels(issue),
+      formatRelations(issue),
+      formatHistory(issue),
+      formatSubscribers(issue),
+      formatParentIssue(issue),
+      formatChildIssues(issue),
+      formatCycle(issue),
+      getOrganizationInfo()
+    ]);
+    
+    const documentId = `linear-issue-${issue.id}`;
+    
+    // Create the main section with metadata
+    const metadataSection: Section = {
+      prefix: "Metadata",
+      content: null,
+      sections: [
+        {
+          prefix: "Issue Details",
+          content: [
+            `ID: ${issue.id}`,
+            `Number: ${issue.number}`,
+            `Identifier: ${issue.identifier}`,
+            `URL: ${issue.url}`
+          ].join('\n'),
+          sections: []
+        },
+        {
+          prefix: "Team & Project",
+          content: [
+            `Team: ${team?.name || 'No team'} (${team?.key || 'No key'})`,
+            `Project: ${project?.name || 'No project'}`,
+            `State: ${state?.name || 'Unknown state'} (${state?.type || 'Unknown type'})` 
+          ].join('\n'),
+          sections: []
+        },
+        {
+          prefix: "Dates & Times",
+          content: [
+            `Created: ${issue.createdAt.toISOString()}`,
+            `Updated: ${issue.updatedAt.toISOString()}`,
+            `Started: ${issue.startedAt ? issue.startedAt.toISOString() : 'Not started'}`,
+            `Completed: ${issue.completedAt ? issue.completedAt.toISOString() : 'Not completed'}`,
+            `Canceled: ${issue.canceledAt ? issue.canceledAt.toISOString() : 'Not canceled'}`,
+            `Auto Closed: ${issue.autoClosedAt ? issue.autoClosedAt.toISOString() : 'Not auto-closed'}`,
+            `Auto Archived: ${issue.autoArchivedAt ? issue.autoArchivedAt.toISOString() : 'Not auto-archived'}`,
+            `Due Date: ${issue.dueDate || 'No due date'}`,
+            `Snoozed Until: ${issue.snoozedUntilAt ? issue.snoozedUntilAt.toISOString() : 'Not snoozed'}`
+          ].join('\n'),
+          sections: []
+        },
+        {
+          prefix: "People",
+          content: [
+            `Creator: ${creator?.name || 'Unknown'} (${creator?.email || 'No email'})`,
+            `Assignee: ${assignee?.name || 'Unassigned'} (${assignee?.email || 'No email'})`,
+            ...(subscribers ? [`Subscribers: ${subscribers}`] : [])
+          ].join('\n'),
+          sections: []
+        },
+        {
+          prefix: "Planning",
+          content: [
+            `Priority: ${issue.priority} (${getPriorityLabel(issue.priority)})`,
+            `Estimate: ${issue.estimate !== null ? issue.estimate : 'No estimate'} points`,
+            `Completed Estimate: ${issue.completedAt ? (issue.estimate !== null ? issue.estimate : 'No estimate') : 'Not completed'}`,
+            ...(cycle ? [`Cycle: ${cycle}`] : []),
+            ...(labels ? [`Labels: ${labels}`] : [])
+          ].join('\n'),
+          sections: []
+        }
+      ]
+    };
+    
+    // Create the full document section structure with only enabled sections
+    const sections: Section[] = [
+      metadataSection,
+      {
+        prefix: "Description",
+        content: formatDescription(issue.description ?? 'No description provided'),
+        sections: []
+      },
+    ];
+    
+    // Add optional sections if they were fetched
+    if (organizationInfo) sections.unshift(organizationInfo);
+    if (parentIssue) sections.push(parentIssue);
+    if (childIssues) sections.push(childIssues);
+    if (relations) sections.push(relations);
+    if (attachments) sections.push(attachments);
+    if (comments) sections.push(...comments);
+    if (history) sections.push(history);
+    
+    const section: Section = {
+      prefix: issue.identifier,
+      content: issue.title,
+      sections: sections
+    };
+
+    // Upsert to Dust
+    await dustApi.post(
+      `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
+      {
+        section: section,
+        title: `${issue.identifier}: ${issue.title}`,
+      }
+    );
+    
+    console.log(`Upserted issue ${issue.identifier} to Dust datasource`);
+  } catch (error) {
+    console.error(
+      `Error upserting issue ${issue.identifier} to Dust datasource:`,
+      error
+    );
+    throw error;
+  }
+}
+
+/**
  * Main function
  */
 async function main() {
   try {
-    const recentIssues = await getRecentlyUpdatedIssues();
+    console.log("Data fetching configuration:");
+    Object.entries(FETCH_CONFIG).forEach(([key, value]) => {
+      console.log(`- ${key}: ${value ? 'Enabled' : 'Disabled'}`);
+    });
+
+    const recentIssues = await getIssues();
     console.log(
       `Found ${recentIssues.length} issues matching the criteria.`
     );
@@ -605,4 +765,4 @@ async function main() {
   }
 }
 
-main(); 
+main();

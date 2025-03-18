@@ -1,150 +1,170 @@
-# Linear to Dust Integration
+# Linear to Dust Data Sync
 
-This script imports Linear issues into a Dust datasource, making them searchable and accessible through Dust's AI capabilities.
+This script is a Node.js application designed to sync Linear issue data into Dust datasources. It fetches issues from Linear based on configurable filters, including related data like comments, attachments, and history, then uploads this information to a specified Dust datasource.
+
+## Usage example
+
+Example of issue summary added to the Dust datasource:
+
+```
+Issue Summary for ENG-123: Implement new authentication flow
+
+Metadata:
+Issue Details:
+ID: abc123
+Number: 123
+Identifier: ENG-123
+URL: https://linear.app/company/issue/ENG-123
+
+Team & Project:
+Team: Engineering (ENG)
+Project: Authentication Overhaul
+State: In Progress (Active)
+
+Dates & Times:
+Created: 2024-03-18T10:00:00.000Z
+Updated: 2024-03-18T15:30:00.000Z
+Started: 2024-03-18T11:00:00.000Z
+Due Date: 2024-03-25
+
+People:
+Creator: Jane Smith (jane@company.com)
+Assignee: John Doe (john@company.com)
+Subscribers: Alice Brown (alice@company.com), Bob Wilson (bob@company.com)
+
+Planning:
+Priority: 2 (High)
+Estimate: 5 points
+Cycle: Sprint 45 (2024-03-18T00:00:00.000Z to 2024-03-29T23:59:59.999Z)
+Labels: security, authentication
+
+Description:
+Implement new OAuth2-based authentication flow with support for multiple providers.
+- Add OAuth2 client implementation
+- Support Google and GitHub providers
+- Implement token refresh logic
+- Add user session management
+
+Comments:
+Comment by Alice Brown (alice@company.com) - 2024-03-18T12:00:00.000Z
+Should we also consider adding Microsoft OAuth support?
+Reactions: 👍: 2, 💡: 1
+
+Comment by John Doe (john@company.com) - 2024-03-18T13:15:00.000Z
+Good suggestion. I'll create a follow-up ticket for that.
+
+Recent History:
+2024-03-18T11:00:00.000Z - John Doe
+Changed status from "Todo" to "In Progress"
+```
 
 ## Features
 
-This integration captures comprehensive data from Linear, including:
-
-- **Issue Details**: ID, number, title, description, priority, estimates, dates, etc.
-- **Relationships**: Parent/child issues, issue relations, linked documents
-- **Team Context**: Team, project, milestone, cycle information
-- **People**: Creator, assignee, subscribers
-- **Activity**: Comments with reactions, issue history, attachments
-- **Organization**: Organization name, URL, and creation date
-- **Status Tracking**: Current state, completion dates, cancellation info
-- **Labels and Tags**: All associated labels with descriptions
+- Configurable issue filtering by:
+  - Update date
+  - Team
+  - Project
+  - State
+  - Labels
+- Comprehensive data collection including:
+  - Comments and reactions
+  - Attachments
+  - Labels
+  - Issue relations
+  - Issue history
+  - Subscribers
+  - Parent/child hierarchy
+  - Cycle information
+  - Organization details
+- Rate limiting for both Linear and Dust APIs
+- Detailed logging and error handling
 
 ## Prerequisites
 
-- Node.js (v14 or later)
-- npm or yarn
-- Linear API key
-- Dust API key, workspace ID, and datasource ID
+- Node.js (version 14 or higher)
+- npm (Node Package Manager)
+- Linear account with API access
+- Dust account with API access
 
-## Setup
+## Installation
 
-1. Clone this repository
-2. Navigate to the `linear` directory
-3. Install dependencies:
+1. Clone the repository:
+   ```bash
+   git clone git@github.com:dust-tt/dust-labs.git
+   cd dust-labs
+   cd linear
    ```
+
+2. Install dependencies:
+   ```bash
    npm install
    ```
-   or
+
+3. Create a `.env` file with the following variables:
+
    ```
-   yarn install
-   ```
-4. Copy the example environment file:
-   ```
-   cp example.env .env
-   ```
-5. Edit the `.env` file and fill in your API keys and other required information:
-   ```
+   # Required variables
    LINEAR_API_KEY=your_linear_api_key
    DUST_API_KEY=your_dust_api_key
-   DUST_WORKSPACE_ID=your_dust_workspace_id
-   DUST_DATASOURCE_ID=your_dust_datasource_id
+   DUST_WORKSPACE_ID=your_workspace_id
+   DUST_DATASOURCE_ID=your_datasource_id
+   DUST_RATE_LIMIT=100
+   LINEAR_MAX_CONCURRENT=5
+
+   # Optional filters
+   LINEAR_UPDATED_SINCE=2024-01-01
+   LINEAR_TEAM_KEY=TEAM
+   LINEAR_PROJECT_ID=project_id
+   LINEAR_STATE=Done
+   LINEAR_LABEL=Bug
+
+   # Optional data fetching configuration
+   FETCH_COMMENTS=true
+   FETCH_ATTACHMENTS=true
+   FETCH_LABELS=true
+   FETCH_RELATIONS=true
+   FETCH_HISTORY=true
+   FETCH_SUBSCRIBERS=true
+   FETCH_HIERARCHY=true
+   FETCH_CYCLE=true
+   FETCH_ORGANIZATION=true
    ```
 
 ## Usage
 
-By default, the script imports Linear issues updated in the last 24 hours. You can change this by setting the `LINEAR_UPDATED_SINCE` variable in your `.env` file (see [Time Configuration](#time-configuration) below).
+To run the script:
 
-Run the script:
-
-```
-npm run issues
+```bash
+npm start
 ```
 
-or
-
-```
-yarn issues
-```
-
-## Configuration Options
-
-You can customize the script behavior by setting these environment variables in your `.env` file:
-
-### Time Configuration
-
-The time period for fetching issues is fully configurable using the `LINEAR_UPDATED_SINCE` variable:
-
-```
-LINEAR_UPDATED_SINCE=24h  # Default: fetch issues updated in the last 24 hours
-```
-
-You can use these formats:
-- Hours: `12h`, `24h`, `48h`, etc.
-- Days: `1d`, `7d`, `30d`, etc.
-
-Examples:
-- `LINEAR_UPDATED_SINCE=12h` - Fetch issues updated in the last 12 hours
-- `LINEAR_UPDATED_SINCE=3d` - Fetch issues updated in the last 3 days
-- `LINEAR_UPDATED_SINCE=14d` - Fetch issues updated in the last 2 weeks
-
-### Issue Filters
-- `LINEAR_TEAM_KEY`: Filter issues by team key (e.g., "ENG")
-- `LINEAR_PROJECT_ID`: Filter issues by project ID
-- `LINEAR_STATE`: Filter issues by state name (e.g., "In Progress", "Done")
-- `LINEAR_LABEL`: Filter issues by label name (e.g., "bug", "feature")
-
-### Rate Limiting
-- `DUST_RATE_LIMIT`: Maximum requests per minute to Dust API (default: 120)
-- `LINEAR_MAX_CONCURRENT`: Maximum concurrent requests to Linear API (default: 5)
-
-## Filtering Examples
-
-To import only bugs from the Engineering team updated in the last 3 days:
-
-```
-LINEAR_UPDATED_SINCE=3d
-LINEAR_TEAM_KEY=ENG
-LINEAR_LABEL=bug
-```
-
-To import only completed issues from a specific project:
-
-```
-LINEAR_STATE=Done
-LINEAR_PROJECT_ID=your_project_id
-```
+The script will:
+1. Validate environment variables and configuration
+2. Fetch Linear issues based on configured filters
+3. Process each issue and its related data
+4. Upload formatted data to your Dust datasource
 
 ## How It Works
 
-1. The script authenticates with Linear using your API key
-2. It fetches all issues updated within the specified time period (configurable via `LINEAR_UPDATED_SINCE`)
-3. It applies any additional filters (team, project, state, label)
-4. For each issue, it retrieves comprehensive related data:
-   - Basic issue information (title, description, priority, etc.)
-   - Team and project context
-   - Assignee and creator details
-   - Comments and reactions
-   - Issue relations and hierarchy (parent/child issues)
-   - Issue history and status changes
-   - Cycle and milestone information
-   - Labels and subscribers
-5. It formats the issue data into a structured text document
-6. It uploads each document to your Dust datasource
+1. The script connects to Linear using the provided API key
+2. It fetches issues based on the configured filters (update date, team, project, state, labels)
+3. For each issue, it collects related data based on the enabled fetch configuration
+4. The data is formatted into a hierarchical document structure
+5. The formatted documents are upserted to the specified Dust datasource
+6. Rate limiting is applied to respect both Linear and Dust API constraints
 
-## Data Structure
+## Error Handling
 
-Each issue is formatted as a structured text document with sections for:
+The script includes comprehensive error handling:
+- Validates required environment variables
+- Handles API rate limits
+- Provides detailed error logging
+- Continues processing on individual issue failures
 
-- Organization information
-- Basic issue details
-- Team and project context
-- People (creator, assignee, subscribers)
-- Dates (created, updated, completed, etc.)
-- Issue hierarchy (parent and sub-issues)
-- Related issues
-- Attachments
-- Recent history
-- Comments with reactions
+## Contributing
 
-## Troubleshooting
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-- **Rate Limiting**: The script includes rate limiting to avoid hitting API limits. If you're processing a large number of issues, it may take some time to complete.
-- **Authentication Errors**: Double-check your API keys in the `.env` file.
-- **Missing Data**: Some fields may be empty if they don't exist in Linear or if permissions are insufficient.
-- **Filtering Issues**: If you're not seeing expected results, check that your filter values match exactly what's in Linear.
+## License
+
+This project is licensed under the ISC License.
