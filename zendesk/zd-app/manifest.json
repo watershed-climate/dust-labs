@@ -20,6 +20,13 @@
       "required": true
     },
     {
+      "name": "region",
+      "type": "text",
+      "required": false,
+      "default": "",
+      "helpText": "Optional: Set to 'eu' for EU region. Leave empty for default region."
+    },
+    {
       "name": "default_assistant_ids",
       "type": "multiline",
       "required": false
@@ -38,7 +45,7 @@
       "ticket_sidebar": "assets/iframe.html"
     }
   },
-  "version": "1.0.7",
+  "version": "1.0.8",
   "frameworkVersion": "2.0",
   "screenshots": [
     {

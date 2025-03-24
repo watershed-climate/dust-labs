@@ -25,7 +25,7 @@ After installation, you need to configure the app with your Dust.tt credentials:
 
 1. In the Zendesk Admin Center, go to Apps > Manage.
 2. Find the Dust app and click on it.
-3. In the app settings, enter your Dust API key and Workspace ID.
+3. In the app settings, enter your Dust API key and Workspace ID and your Dust workspace region.
 4. Save the changes.
 
 Make sure that the users who will be using this app have valid Dust.tt accounts associated with their Zendesk email addresses.
