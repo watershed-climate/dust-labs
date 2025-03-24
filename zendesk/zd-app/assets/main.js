@@ -73,6 +73,15 @@ function getSourceUrlFromReference(reference) {
 
   let defaultAssistantIds;
 
+  // Helper function to get Dust base URL based on region
+  function getDustBaseUrl(metadata) {
+    const region = metadata.settings.region;
+    if (region && region.toLowerCase() === "eu") {
+      return "https://eu.dust.tt";
+    }
+    return "https://dust.tt";
+  }
+
   try {
     await client.on("app.registered");
     const metadata = await client.metadata();
@@ -136,7 +145,9 @@ function getSourceUrlFromReference(reference) {
   }
 
   async function checkUserValidity(dustWorkspaceId, dustApiKey, userEmail) {
-    const validationUrl = `https://dust.tt/api/v1/w/${dustWorkspaceId}/members/validate`;
+    const metadata = await client.metadata();
+    const baseUrl = getDustBaseUrl(metadata);
+    const validationUrl = `${baseUrl}/api/v1/w/${dustWorkspaceId}/members/validate`;
     const options = {
       url: validationUrl,
       type: "POST",
@@ -184,7 +195,8 @@ function getSourceUrlFromReference(reference) {
     }
 
     const authorization = `Bearer ${dustApiKey}`;
-    const assistantsApiUrl = `https://dust.tt/api/v1/w/${dustWorkspaceId}/assistant/agent_configurations`;
+    const baseUrl = getDustBaseUrl(metadata);
+    const assistantsApiUrl = `${baseUrl}/api/v1/w/${dustWorkspaceId}/assistant/agent_configurations`;
 
     const options = {
       url: assistantsApiUrl,
@@ -339,7 +351,8 @@ function getSourceUrlFromReference(reference) {
         : `${metadata.settings.dust_workspace_id}`;
       const hideCustomerInformation =
         metadata.settings.hide_customer_information;
-      const dustApiUrl = `https://dust.tt/api/v1/w/${dustWorkspaceId}/assistant/conversations`;
+      const baseUrl = getDustBaseUrl(metadata);
+      const dustApiUrl = `${baseUrl}/api/v1/w/${dustWorkspaceId}/assistant/conversations`;
       const authorization = `Bearer ${dustApiKey}`;
 
       let selectedAssistantId, selectedAssistantName;

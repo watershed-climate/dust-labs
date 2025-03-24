@@ -13,6 +13,10 @@
         "label": "Dust Workspace ID",
         "helpText": "Enter your Dust Workspace ID. This identifies the specific Dust workspace to connect with your Zendesk account."
       },
+      "region": {
+        "label": "Region",
+        "helpText": "Optional: Set to 'eu' for EU region. Leave empty to use the default region (dust.tt)."
+      },
       "default_assistant_ids": {
         "label": "Restrict Available Assistants",
         "helpText": "Optionally add Dust Assistant IDs (one per line) to limit which assistants are available in the app. Leave blank to show all assistants in your workspace."
