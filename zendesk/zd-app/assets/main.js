@@ -75,7 +75,8 @@ function getSourceUrlFromReference(reference) {
 
   // Helper function to get Dust base URL based on region
   function getDustBaseUrl(metadata) {
-    const region = metadata.settings.region;
+    const region = isProd ? "{{setting.region}}" : metadata.settings.region;
+
     if (region && region.toLowerCase() === "eu") {
       return "https://eu.dust.tt";
     }
