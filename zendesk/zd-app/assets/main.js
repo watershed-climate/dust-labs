@@ -75,7 +75,7 @@ function getSourceUrlFromReference(reference) {
 
   // Helper function to get Dust base URL based on region
   function getDustBaseUrl(metadata) {
-    const region = isProd ? "{{setting.region}}" : metadata.settings.region;
+    const region = metadata.settings.region;
 
     if (region && region.toLowerCase() === "eu") {
       return "https://eu.dust.tt";
@@ -148,6 +148,7 @@ function getSourceUrlFromReference(reference) {
   async function checkUserValidity(dustWorkspaceId, dustApiKey, userEmail) {
     const metadata = await client.metadata();
     const baseUrl = getDustBaseUrl(metadata);
+
     const validationUrl = `${baseUrl}/api/v1/w/${dustWorkspaceId}/members/validate`;
     const options = {
       url: validationUrl,
