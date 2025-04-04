@@ -5,7 +5,7 @@
     "email": "support@dust.tt",
     "url": "https://dust.tt"
   },
-  "domainWhitelist": ["dust.tt"],
+  "domainWhitelist": ["dust.tt", "eu.dust.tt"],
   "parameters": [
     {
       "name": "dust_api_key",
