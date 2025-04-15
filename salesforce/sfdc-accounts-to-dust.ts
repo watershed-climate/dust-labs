@@ -255,6 +255,8 @@ function formatAddress(
 
 async function upsertDocumentToDustDatasource(account: Account) {
   const documentId = `account-${account.Id}`;
+  const title = `Account Summary - ${account.Name}`;
+  const timestamp = Date.now();
   const content = `
     Account Summary for ${account.Name}
     Basic Account Details:
@@ -334,21 +336,26 @@ async function upsertDocumentToDustDatasource(account: Account) {
   `.trim();
   try {
     await rateLimitedDustApiPost(
-      `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
+      `/w/${DUST_WORKSPACE_ID}/spaces/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
       {
-        source_url: `${SF_LOGIN_URL}/${account.Id}`,
+        title: title,
+        mime_type: "text/plain",
         text: content,
+        source_url: `${SF_LOGIN_URL}/${account.Id}`,
+        timestamp: timestamp,
+        tags: ["salesforce", "account"],
+        light_document_output: true,
       }
     );
 
     if (IMPORT_AS_TABLE) {
       await rateLimitedDustApiPost(
-        `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/table/${documentId}`,
+        `/w/${DUST_WORKSPACE_ID}/spaces/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/tables/${documentId}`,
         {
           id: DUST_TABLE_ID,
-
           source_url: `${SF_LOGIN_URL}/${account.Id}`,
           text: content,
+          timestamp: timestamp,
         }
       );
     }
@@ -409,12 +416,12 @@ async function main() {
     if (IMPORT_AS_TABLE) {
       // Create the table if it does not exist.
       const existingTable = await dustApi.get(
-        `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/tables/${DUST_TABLE_ID}`
+        `/w/${DUST_WORKSPACE_ID}/spaces/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/tables/${DUST_TABLE_ID}`
       );
 
       if (existingTable.status === 404) {
         await rateLimitedDustApiPost(
-          `/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/tables`,
+          `/w/${DUST_WORKSPACE_ID}/spaces/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/tables`,
           {
             id: DUST_TABLE_ID,
             name: "Salesforce Accounts",
