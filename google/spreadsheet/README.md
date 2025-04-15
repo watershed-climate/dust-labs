@@ -20,7 +20,7 @@ Before using the script, you need to configure your Dust credentials:
 2. Select "Setup"
 3. Enter your:
    - Dust Workspace ID (found in your workspace URL: dust.tt/w/[workspace-id])
-   - Dust API Key (generate one at dust.tt/settings/developers)
+   - Dust API Key (generate one at dust.tt/w/[workspace-id]/developers/api-keys)
 
 ## Usage
 
