@@ -530,6 +530,7 @@ function getSourceUrlFromReference(reference) {
         title: `Zendesk Ticket #${ticketInfo.id} - ${ticketInfo.customerName}`,
         visibility: "unlisted",
         blocking: true,
+        skipToolsValidation: true,
       };
 
       const options = {
