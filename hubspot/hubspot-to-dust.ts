@@ -15,6 +15,7 @@ const HUBSPOT_PORTAL_ID = process.env.HUBSPOT_PORTAL_ID;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
+const DUST_VAULT_ID = process.env.DUST_VAULT_ID;
 
 const UPDATED_SINCE_DAYS = 1; // Number of days to look back for updates
 const UPDATED_SINCE = new Date(Date.now() - UPDATED_SINCE_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -369,7 +370,7 @@ ${props.notes_last_updated ? `Last Note Updated: ${props.notes_last_updated}` : 
   `.trim();
 
   try {
-    await dustLimiter.schedule(() => dustApi.post(`/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`, {
+    await dustLimiter.schedule(() => dustApi.post(`/w/${DUST_WORKSPACE_ID}/vaults/${DUST_VAULT_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`, {
       source_url: `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/company/${company.id}`,
       text: content
     }));
