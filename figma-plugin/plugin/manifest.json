@@ -1,0 +1,12 @@
+{
+  "name": "Dust",
+  "id": "dust",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "enableProposedApi": false,
+  "editorType": ["figma", "figjam"],
+  "networkAccess": {
+    "allowedDomains": ["https://eu.dust.tt", "http://localhost:3000"],
+    "reasoning": "Dust access for AI agents interactions."
+  }
+}
