@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import 'katex/dist/katex.min.css';
+@keyframes rotate-gradient {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+}
+@keyframes pulsate {
+  0% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.2;
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: 200% 50%;
+  }
+  100% {
+    background-position: -100% 50%;
+  }
+}
+
+.checkmark-path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: draw-check 1s ease forwards;
+}
+
+@keyframes draw-check {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.pulsating-dots span {
+  display: inline-block;
+  animation: pulsate 1.5s infinite;
+}
+
+.pulsating-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.pulsating-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.pulsating-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.thinking-text {
+  position: relative;
+  background: linear-gradient(
+    120deg,
+    #4b5563 20%,
+    #9ca3af 40%,
+    #4b5563 60%,
+    #9ca3af 80%
+  );
+  background-size: 200% 100%;
+  color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 2s linear infinite;
+}
+
+.fade-top-shadow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3rem; /* Adjust for fade length */
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(255,255,255,0.1) 100%);
+  z-index: 10;
+}
