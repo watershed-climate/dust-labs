@@ -46,7 +46,7 @@ const dustApi = axios.create({
 // Bottleneck limiter for HubSpot API
 const hubspotLimiter = new Bottleneck({
   maxConcurrent: 1,
-  minTime: 100*1.05 // 1000ms / 10 requests per second minus a 5% margin
+  minTime: 100 // 1000ms / 10 requests per second
 });
 
 // Bottleneck limiter for Dust API
