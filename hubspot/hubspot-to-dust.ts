@@ -46,13 +46,13 @@ const dustApi = axios.create({
 // Bottleneck limiter for HubSpot API
 const hubspotLimiter = new Bottleneck({
   maxConcurrent: 1,
-  minTime: 100 // 1000ms / 10 requests per second
+  minTime: 100 * 1.05 // 1000ms / 10 requests per second minus a 5% margin
 });
 
 // Bottleneck limiter for Dust API
 const dustLimiter = new Bottleneck({
   maxConcurrent: 1,
-  minTime: 500 // 60000ms / 120 requests per minute
+  minTime: 500 / THREADS_NUMBER // 60000ms / 120 requests per minute
 });
 
 interface Company {
@@ -142,7 +142,7 @@ async function getRecentlyUpdatedCompanyIds(): Promise<string[]> {
       if (after) {
         searchBody.after = after;
       }
-
+      console.log("call to /crm/v3/objects/companies/search")
       const response = await hubspotLimiter.schedule(() =>
         hubspotApi.post('/crm/v3/objects/companies/search', searchBody)
       );
