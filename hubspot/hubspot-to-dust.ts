@@ -46,7 +46,7 @@ const dustApi = axios.create({
 // Bottleneck limiter for HubSpot API
 const hubspotLimiter = new Bottleneck({
   maxConcurrent: 1,
-  minTime: 100 // 1000ms / 10 requests per second
+  minTime: 100*1.05 // 1000ms / 10 requests per second minus a 5% margin
 });
 
 // Bottleneck limiter for Dust API
@@ -120,26 +120,51 @@ function stripHtmlTags(html: string): string {
   return html.replace(/<[^>]*>/g, '').trim();
 }
 
-
 async function getRecentlyUpdatedCompanyIds(): Promise<string[]> {
+  let allCompanyIds: string[] = [];
+  let after: string | null = null;
+  const PAGE_LIMIT = 100;
+
   try {
-    const response = await hubspotLimiter.schedule(() => hubspotApi.post('/crm/v3/objects/companies/search', {
-      filterGroups: [{
-        filters: [{
-          propertyName: 'hs_lastmodifieddate',
-          operator: 'GTE',
-          value: UPDATED_SINCE
-        }]
-      }],
-      properties: ['hs_object_id'],
-      limit: 100
-    }));
-    return response.data.results.map((company: Company) => company.id);
+    while (true) {
+      const searchBody: any = {
+        filterGroups: [{
+          filters: [{
+            propertyName: 'hs_lastmodifieddate',
+            operator: 'GTE',
+            value: UPDATED_SINCE
+          }]
+        }],
+        properties: ['hs_object_id'],
+        limit: PAGE_LIMIT
+      };
+
+      if (after) {
+        searchBody.after = after;
+      }
+
+      const response = await hubspotLimiter.schedule(() =>
+        hubspotApi.post('/crm/v3/objects/companies/search', searchBody)
+      );
+
+      const companies = response.data.results;
+      allCompanyIds = allCompanyIds.concat(companies.map((company: Company) => company.id));
+
+      if (!response.data.paging?.next?.after) {
+        break;
+      }
+      after = response.data.paging.next.after;
+    }
+
+    console.log(`Found ${allCompanyIds.length} companies with updates in the last ${UPDATED_SINCE_DAYS} day(s).`);
+    return allCompanyIds;
+
   } catch (error) {
     console.error('Error fetching recently updated company IDs:', error);
     return [];
   }
 }
+
 
 async function getCompanyDetails(companyId: string): Promise<Company | null> {
   try {
