@@ -17,7 +17,7 @@ const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 const DUST_VAULT_ID = process.env.DUST_VAULT_ID;
 
-const UPDATED_SINCE_DAYS = 1; // Number of days to look back for updates
+const UPDATED_SINCE_DAYS = 1090; // Number of days to look back for updates
 const UPDATED_SINCE = new Date(Date.now() - UPDATED_SINCE_DAYS * 24 * 60 * 60 * 1000).toISOString();
 const THREADS_NUMBER = 3;
 
@@ -142,10 +142,24 @@ async function getRecentlyUpdatedCompanyIds(): Promise<string[]> {
       if (after) {
         searchBody.after = after;
       }
-      console.log("call to /crm/v3/objects/companies/search")
-      const response = await hubspotLimiter.schedule(() =>
-        hubspotApi.post('/crm/v3/objects/companies/search', searchBody)
-      );
+
+      let response;
+      while (true) {
+        try {
+          console.log("call to /crm/v3/objects/companies/search")
+          response = await hubspotLimiter.schedule(() =>
+            hubspotApi.post('/crm/v3/objects/companies/search', searchBody)
+          );
+          break;
+        } catch (error: any) {
+          if (error.response?.status === 429) {
+            console.log("Rate limit hit, retrying...");
+            await new Promise(resolve => setTimeout(resolve, 100));
+            continue;
+          }
+          throw error;
+        }
+      }
 
       const companies = response.data.results;
       allCompanyIds = allCompanyIds.concat(companies.map((company: Company) => company.id));
