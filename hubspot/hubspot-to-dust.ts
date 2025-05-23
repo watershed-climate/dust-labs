@@ -14,12 +14,14 @@ const HUBSPOT_ACCESS_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN;
 const HUBSPOT_PORTAL_ID = process.env.HUBSPOT_PORTAL_ID;
 const DUST_API_KEY = process.env.DUST_API_KEY;
 const DUST_WORKSPACE_ID = process.env.DUST_WORKSPACE_ID;
+const DUST_SPACE_ID = process.env.DUST_SPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
-
-const UPDATED_SINCE_DAYS = 1; // Number of days to look back for updates
-const UPDATED_SINCE = new Date(
-  Date.now() - UPDATED_SINCE_DAYS * 24 * 60 * 60 * 1000
-).toISOString();
+const UPDATED_SINCE_DAYS = 180; // Set to null to sync all companies
+const UPDATED_SINCE = UPDATED_SINCE_DAYS
+  ? new Date(
+      Date.now() - UPDATED_SINCE_DAYS * 24 * 60 * 60 * 1000
+    ).toISOString()
+  : null;
 const THREADS_NUMBER = 3;
 
 if (
@@ -27,10 +29,11 @@ if (
   !HUBSPOT_PORTAL_ID ||
   !DUST_API_KEY ||
   !DUST_WORKSPACE_ID ||
+  !DUST_SPACE_ID ||
   !DUST_DATASOURCE_ID
 ) {
   throw new Error(
-    "Please provide values for HUBSPOT_ACCESS_TOKEN, HUBSPOT_PORTAL_ID, DUST_API_KEY, DUST_WORKSPACE_ID, and DUST_DATASOURCE_ID in .env file."
+    "Please provide values for HUBSPOT_ACCESS_TOKEN, HUBSPOT_PORTAL_ID, DUST_API_KEY, DUST_WORKSPACE_ID, DUST_SPACE_ID, and DUST_DATASOURCE_ID in .env file."
   );
 }
 
@@ -157,26 +160,32 @@ function stripHtmlTags(html: string): string {
 
 async function getRecentlyUpdatedCompanyIds(): Promise<string[]> {
   try {
+    const searchBody: any = {
+      properties: ["hs_object_id", "name"],
+      limit: 100,
+    };
+
+    // Only add date filter if UPDATED_SINCE_DAYS is set
+    if (UPDATED_SINCE) {
+      searchBody.filterGroups = [
+        {
+          filters: [
+            {
+              propertyName: "hs_lastmodifieddate",
+              operator: "GTE",
+              value: UPDATED_SINCE,
+            },
+          ],
+        },
+      ];
+    }
+
     const response = await hubspotLimiter.schedule(() =>
-      hubspotApi.post("/crm/v3/objects/companies/search", {
-        filterGroups: [
-          {
-            filters: [
-              {
-                propertyName: "hs_lastmodifieddate",
-                operator: "GTE",
-                value: UPDATED_SINCE,
-              },
-            ],
-          },
-        ],
-        properties: ["hs_object_id"],
-        limit: 100,
-      })
+      hubspotApi.post("/crm/v3/objects/companies/search", searchBody)
     );
     return response.data.results.map((company: Company) => company.id);
   } catch (error) {
-    console.error("Error fetching recently updated company IDs:", error);
+    console.error("Error fetching company IDs:", error);
     return [];
   }
 }
@@ -614,6 +623,14 @@ function createCompanyTags(
   return [...baseTags, ...companyTags, ...contactRoleTags, ...dealStageTags];
 }
 
+function sanitizeDocumentId(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-") // Replace any non-alphanumeric chars with hyphens
+    .replace(/-+/g, "-") // Replace multiple hyphens with single hyphen
+    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+}
+
 async function upsertToDustDatasource(
   company: Company,
   contacts: Contact[],
@@ -623,8 +640,10 @@ async function upsertToDustDatasource(
   notes: Note[],
   hubspotClient: HubspotClient
 ) {
-  const documentId = `company-${company.id}`;
   const props = company.properties || {};
+  const companyName =
+    typeof props.name === "string" ? props.name : "Unknown Company";
+  const documentId = sanitizeDocumentId(`${companyName}-${company.id}`);
 
   const section = await createCompanySection(
     documentId,
@@ -640,20 +659,23 @@ async function upsertToDustDatasource(
   try {
     await dustLimiter.schedule(() =>
       dustApi.post(
-        `/w/${DUST_WORKSPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
+        `/w/${DUST_WORKSPACE_ID}/spaces/${DUST_SPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`,
         {
           source_url: `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/company/${company.id}`,
           section,
           tags: createCompanyTags(company, contacts, deals),
-          title: `${props.name || company.id}`,
+          title: companyName,
           mimeType: "text/plain",
+          light_document_output: true,
         }
       )
     );
-    console.log(`Upserted company ${company.id} to Dust datasource`);
+    console.log(
+      `Upserted company ${companyName} (${company.id}) to Dust datasource`
+    );
   } catch (error) {
     console.error(
-      `Error upserting company ${company.id} to Dust datasource:`,
+      `Error upserting company ${companyName} (${company.id}) to Dust datasource:`,
       error
     );
   }
@@ -664,7 +686,9 @@ if (isMainThread) {
     try {
       const companyIds = await getRecentlyUpdatedCompanyIds();
       console.log(
-        `Found ${companyIds.length} companies with updates in the last ${UPDATED_SINCE_DAYS} day(s).`
+        UPDATED_SINCE_DAYS
+          ? `Found ${companyIds.length} companies with updates in the last ${UPDATED_SINCE_DAYS} day(s).`
+          : `Found ${companyIds.length} companies to sync (full sync).`
       );
 
       const batchSize = Math.ceil(companyIds.length / THREADS_NUMBER);
