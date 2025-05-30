@@ -1,14 +1,14 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("Dust")
-    .addItem("Call an Assistant", "processSelected")
+    .addItem("Call an Agent", "processSelected")
     .addItem("Setup", "showCredentialsDialog")
     .addToUi();
 }
 
 function showSelectionToast() {
   SpreadsheetApp.getActiveSpreadsheet().toast(
-    'Select your input cells, then click the "Call an Assistant" menu item again',
+    'Select your input cells, then click the "Call an Agent" menu item again',
     "Select Cells",
     -1 // Show indefinitely
   );
@@ -249,11 +249,11 @@ function processSelected() {
     "</style>" +
     '<form id="myForm">' +
     '<div style="margin-bottom: 10px;">' +
-    '<label for="assistant">Assistant:</label><br>' +
+    '<label for="assistant">Agent:</label><br>' +
     '<select id="assistant" name="assistant" required disabled>' +
     '<option value=""></option>' +
     "</select>" +
-    '<div id="loadError" class="error">Failed to load assistants</div>' +
+    '<div id="loadError" class="error">Failed to load agents</div>' +
     "</div>" +
     '<div style="margin-bottom: 10px;">' +
     '<label for="cellRange">Input Cells:</label><br>' +
@@ -364,12 +364,12 @@ function processSelected() {
     "$(document).ready(function() {" +
     "onLoad();" +
     "$('#assistant').select2({" +
-    "placeholder: 'Loading assistants...', " +
+    "placeholder: 'Loading agents...', " +
     "allowClear: true, " +
     "width: '100%', " +
     "language: {" +
     "noResults: function() {" +
-    "return 'No assistants found';" +
+    "return 'No agents found';" +
     "}" +
     "}" +
     "});" +
@@ -382,7 +382,7 @@ function processSelected() {
     "errorDiv.textContent = '❌ ' + data.error;" +
     "errorDiv.style.display = 'block';" +
     "$('#assistant').select2({" +
-    "placeholder: 'Failed to load assistants', " +
+    "placeholder: 'Failed to load agents', " +
     "allowClear: true, " +
     "width: '100%'" +
     "});" +
@@ -400,18 +400,18 @@ function processSelected() {
     "});" +
     "select.disabled = false;" +
     "$('#assistant').select2({" +
-    "placeholder: 'Select an assistant', " +
+    "placeholder: 'Select an agent', " +
     "allowClear: true, " +
     "width: '100%', " +
     "language: {" +
     "noResults: function() {" +
-    "return 'No assistants found';" +
+    "return 'No agents found';" +
     "}" +
     "}" +
     "});" +
     "if (data.assistants.length === 0) {" +
     "$('#assistant').select2({" +
-    "placeholder: 'No assistants available', " +
+    "placeholder: 'No agents available', " +
     "allowClear: true, " +
     "width: '100%'" +
     "});" +
@@ -422,7 +422,7 @@ function processSelected() {
     "errorDiv.textContent = '❌ ' + error;" +
     "errorDiv.style.display = 'block';" +
     "$('#assistant').select2({" +
-    "placeholder: 'Failed to load assistants', " +
+    "placeholder: 'Failed to load agents', " +
     "allowClear: true, " +
     "width: '100%'" +
     "});" +
@@ -433,11 +433,11 @@ function processSelected() {
     "const assistantSelect = document.getElementById('assistant');" +
     "const cellRange = document.getElementById('cellRange');" +
     "if (assistantSelect.disabled) {" +
-    "alert('Please wait for assistants to load');" +
+    "alert('Please wait for agents to load');" +
     "return;" +
     "}" +
     "if (!assistantSelect.value) {" +
-    "alert('Please select an assistant');" +
+    "alert('Please select an agent');" +
     "return;" +
     "}" +
     "if (!cellRange.value) {" +
