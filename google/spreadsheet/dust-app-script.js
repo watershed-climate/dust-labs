@@ -88,14 +88,29 @@ function analyzeSelectedRange(rangeA1Notation) {
   try {
     const sheet = SpreadsheetApp.getActiveSheet();
     const range = sheet.getRange(rangeA1Notation);
-    const numColumns = range.getNumColumns();
-    const numRows = range.getNumRows();
+
+    // Get the actual start and end positions
+    const startRow = range.getRow();
+    const startCol = range.getColumn();
+    const lastRow = range.getLastRow();
+    const lastCol = range.getLastColumn();
+
+    // Calculate dimensions explicitly
+    const numRows = lastRow - startRow + 1;
+    const numColumns = lastCol - startCol + 1;
 
     return {
       success: true,
       numColumns: numColumns,
       numRows: numRows,
       hasMultipleColumns: numColumns > 1,
+      debug: {
+        startRow: startRow,
+        lastRow: lastRow,
+        startCol: startCol,
+        lastCol: lastCol,
+        rangeNotation: rangeA1Notation,
+      },
     };
   } catch (error) {
     return {
@@ -103,6 +118,42 @@ function analyzeSelectedRange(rangeA1Notation) {
       error: error.toString(),
     };
   }
+}
+
+// Helper function to get the actual value for a cell, handling merged cells
+function getCellValue(sheet, row, col) {
+  try {
+    const cell = sheet.getRange(row, col);
+    const mergedRanges = sheet.getRange(row, col, 1, 1).getMergedRanges();
+
+    if (mergedRanges.length > 0) {
+      // This cell is part of a merged range, get the value from the top-left cell
+      const mergedRange = mergedRanges[0];
+      return mergedRange.getCell(1, 1).getValue();
+    } else {
+      // Regular cell
+      return cell.getValue();
+    }
+  } catch (error) {
+    console.error("Error getting cell value:", error);
+    return "";
+  }
+}
+
+// Helper function to get values from a range, handling merged cells
+function getValuesWithMergedCells(sheet, startRow, startCol, numRows, numCols) {
+  const values = [];
+
+  for (let row = 0; row < numRows; row++) {
+    const rowValues = [];
+    for (let col = 0; col < numCols; col++) {
+      const cellValue = getCellValue(sheet, startRow + row, startCol + col);
+      rowValues.push(cellValue);
+    }
+    values.push(rowValues);
+  }
+
+  return values;
 }
 
 function processSelected() {
@@ -305,6 +356,9 @@ function processSelected() {
     "if (result.success) {" +
     "if (result.hasMultipleColumns) {" +
     "infoDiv.textContent = 'Selected: ' + result.numRows + ' rows × ' + result.numColumns + ' columns';" +
+    "if (result.debug) {" +
+    "console.log('Range debug:', result.debug);" +
+    "}" +
     "headerSection.style.display = 'block';" +
     "} else {" +
     "infoDiv.textContent = 'Selected: ' + result.numRows + ' rows × ' + result.numColumns + ' column';" +
@@ -555,6 +609,7 @@ function processWithAssistant(
   headerRow = headerRow || 1;
   const BATCH_SIZE = 10;
   const BATCH_DELAY = 1000;
+
   const docProperties = PropertiesService.getDocumentProperties();
   const token = docProperties.getProperty("dustToken");
   const workspaceId = docProperties.getProperty("workspaceId");
@@ -574,7 +629,16 @@ function processWithAssistant(
   }
 
   const BASE_URL = getDustBaseUrl() + "/api/v1/w/" + workspaceId;
-  const selectedValues = selected.getValues();
+
+  // Use the new merged cell handling function
+  const selectedValues = getValuesWithMergedCells(
+    sheet,
+    selected.getRow(),
+    selected.getColumn(),
+    selected.getNumRows(),
+    selected.getNumColumns()
+  );
+
   const numColumns = selected.getNumColumns();
   const numRows = selected.getNumRows();
   const startRow = selected.getRow();
@@ -586,14 +650,14 @@ function processWithAssistant(
     if (headerRowIndex >= 0 && headerRowIndex < numRows) {
       headers = selectedValues[headerRowIndex];
     } else {
-      // If header row is outside the selected range, get it from the sheet
-      const headerRange = sheet.getRange(
+      // If header row is outside the selected range, get it from the sheet with merged cell handling
+      headers = getValuesWithMergedCells(
+        sheet,
         headerRow,
         selected.getColumn(),
         1,
         numColumns
-      );
-      headers = headerRange.getValues()[0];
+      )[0];
     }
   }
 
@@ -686,13 +750,16 @@ function processWithAssistant(
     const batchRequests = batch.map(function (item) {
       return item.request;
     });
+
     const responses = UrlFetchApp.fetchAll(batchRequests);
 
     responses.forEach(function (response, index) {
       const targetCell = batch[index].cell;
+
       try {
         const result = JSON.parse(response.getContentText());
         const content = result.conversation.content;
+
         const lastAgentMessage = content
           .flat()
           .reverse()
@@ -705,17 +772,21 @@ function processWithAssistant(
           workspaceId +
           "/assistant/" +
           result.conversation.sId;
+
         targetCell.setValue(
           lastAgentMessage ? lastAgentMessage.content : "No response"
         );
+
         targetCell.setNote("View conversation on Dust: " + appUrl);
       } catch (error) {
         targetCell.setValue("Error: " + error.toString());
       }
+
       processedCells++;
     });
 
     const progress = Math.round((processedCells / totalCells) * 100);
+
     SpreadsheetApp.getActiveSpreadsheet().toast(
       "Processed " +
         processedCells +
@@ -747,20 +818,25 @@ function processWithAssistant(
 // Helper function to convert column letter to index
 function columnToIndex(column) {
   if (!column || typeof column !== "string") return null;
+
   column = column.toUpperCase();
   var sum = 0;
+
   for (var i = 0; i < column.length; i++) {
     sum *= 26;
     sum += column.charCodeAt(i) - "A".charCodeAt(0) + 1;
   }
+
   return sum;
 }
 
 function getDustBaseUrl() {
   const docProperties = PropertiesService.getDocumentProperties();
   const region = docProperties.getProperty("region");
+
   if (region && region.toLowerCase() === "eu") {
     return "https://eu.dust.tt";
   }
+
   return "https://dust.tt";
 }
