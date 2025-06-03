@@ -18,12 +18,16 @@ const DUST_SPACE_ID = process.env.DUST_SPACE_ID;
 const DUST_DATASOURCE_ID = process.env.DUST_DATASOURCE_ID;
 const DUST_RATE_LIMIT = parseInt(process.env.DUST_RATE_LIMIT || '120');
 
-const MAX_DUST_TEXT_SIZE = 1024 * 1024; // 1MB
+const MAX_DUST_TEXT_SIZE = 2 * 1024 * 1024; // 2MB
 const SPLIT_OVERLAP = 200; // chars of overlap between splits for context
 
 // CLI arg for extension filter
 const extArgIdx = process.argv.indexOf('--ext');
 const EXTENSION = extArgIdx !== -1 && process.argv[extArgIdx + 1] ? process.argv[extArgIdx + 1] : DROPBOX_EXTENSION_FILTER;
+
+if (!EXTENSION) {
+  throw new Error('File extension must be specified either via DROPBOX_EXTENSION_FILTER env var or --ext CLI argument');
+}
 
 // Validate required env vars
 const missingEnvVars = [
@@ -229,7 +233,7 @@ async function upsertToDustDatasource(file: DropboxFileMetadata, content: string
     const partMeta = contentParts.length === 1 ? '' : `\n(Part ${i + 1} of ${contentParts.length})`;
     const textWithPart = partText + partMeta;
     if (Buffer.byteLength(textWithPart, 'utf8') > MAX_DUST_TEXT_SIZE) {
-      console.warn(`[SKIP] Even split part for ${file.name} exceeds Dust 1MB text limit. Skipping part ${i + 1}.`);
+      console.warn(`[SKIP] Even split part for ${file.name} exceeds Dust 2MB text limit. Skipping part ${i + 1}.`);
       continue;
     }
     const url = `/w/${DUST_WORKSPACE_ID}/spaces/${DUST_SPACE_ID}/data_sources/${DUST_DATASOURCE_ID}/documents/${documentId}`;
@@ -239,6 +243,7 @@ async function upsertToDustDatasource(file: DropboxFileMetadata, content: string
       data: {
         text: textWithPart,
         source_url: `https://www.dropbox.com/home${file.path_display}`,
+        title: contentParts.length === 1 ? file.name : `${file.name} (Part ${i + 1} of ${contentParts.length})`,
       },
     });
     console.log(`[UPLOADED] ${file.name} part ${i + 1}/${contentParts.length} as ${documentId}`);

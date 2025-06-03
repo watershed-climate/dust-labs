@@ -1,10 +1,10 @@
 # Dropbox to Dust Data Sync
 
-This script is a Node.js application designed to sync Dropbox files (including Paper docs) into Dust datasources. It fetches all files from your Dropbox account, optionally filtering by extension (e.g., `.paper`, `.md`, `.docx`), exports their content, and uploads them to a specified Dust datasource while maintaining their structure and content.
+This script is a Node.js application designed to sync Dropbox files (including Paper docs) into Dust datasources. It fetches all files from your Dropbox account, filtering by extension (e.g., `.paper`, `.md`, `.docx`, `.txt`), exports their content, and uploads them to a specified Dust datasource while maintaining their structure and content.
 
 ## Features
 
-- Bulk synchronization of all Dropbox files (optionally filter by extension)
+- Bulk synchronization of Dropbox files filtered by extension
 - Supports Dropbox Paper docs, Markdown, Word, and other file types
 - Preserves file metadata including:
   - File ID and name
@@ -74,7 +74,7 @@ To use this script, you need to create a Dropbox API app and generate an access 
 - `DUST_WORKSPACE_ID`: Your Dust workspace identifier
 - `DUST_DATASOURCE_ID`: Your Dust datasource identifier. This can be found by clicking `...` on your folder in the Dust console then `Use from API`.
 - `DUST_SPACE_ID`: Your Dust space identifier
-- `DROPBOX_EXTENSION_FILTER`: (Optional) File extension to filter by (e.g., `.paper`, `.md`, `.docx`). If not set, all files are synced.
+- `DROPBOX_EXTENSION_FILTER`: File extension to filter by (e.g., `.paper`, `.md`, `.docx`)
 - `DROPBOX_ROOT_PATH`: (Optional) Dropbox folder path to start from. Defaults to root (`""`).
 - `DUST_RATE_LIMIT`: (Optional, default 120) Maximum requests per minute to Dust API.
 - `DROPBOX_MAX_CONCURRENT`: (Optional) Maximum concurrent Dropbox file processing operations
@@ -111,7 +111,7 @@ npm run sync -- --ext .paper
 
 The script will:
 1. Validate environment variables
-2. Connect to Dropbox and fetch all files (optionally filter by extension)
+2. Connect to Dropbox and fetch all files matching the specified extension
 3. Export and process each file
 4. Upload formatted data to your Dust datasource
 
