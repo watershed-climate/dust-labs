@@ -174,8 +174,9 @@ function processSelected() {
     '<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>' +
     '<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>' +
     "<style>" +
+    "@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap');" +
     "* {" +
-    "font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;" +
+    "font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;" +
     "}" +
     "body {" +
     "padding: 10px;" +
@@ -185,7 +186,7 @@ function processSelected() {
     "width: 12px;" +
     "height: 12px;" +
     "border: 3px solid #f3f3f3;" +
-    "border-top: 3px solid #3498db;" +
+    "border-top: 3px solid #1C91FF;" +
     "border-radius: 50%;" +
     "animation: spin 1s linear infinite;" +
     "margin-right: 8px;" +
@@ -203,26 +204,26 @@ function processSelected() {
     "}" +
     "select, input, textarea {" +
     "width: 100%;" +
-    "padding-top: 8px;" +
-    "padding-bottom: 8px;" +
+    "padding: 8px 12px;" +
     "margin-bottom: 10px;" +
     "border: 1px solid #ddd;" +
-    "border-radius: 4px;" +
+    "border-radius: 12px;" +
     "font-family: inherit;" +
     "}" +
     "select {" +
     "background: white;" +
     "}" +
     'input[type="submit"], input[type="button"] {' +
-    "background-color: #61A5FA;" +
+    "background-color: #1C91FF;" +
     "color: white;" +
     "border: none;" +
+    "border-radius: 12px;" +
     "padding: 10px 20px;" +
     "cursor: pointer;" +
     "transition: background-color 0.2s ease;" +
     "}" +
     'input[type="submit"]:hover, input[type="button"]:hover {' +
-    "background-color: #4884d9;" +
+    "background-color: #0F7CE8;" +
     "}" +
     'input[type="submit"]:disabled {' +
     "background-color: #cccccc;" +
@@ -246,6 +247,7 @@ function processSelected() {
     ".select2-selection {" +
     "height: 38px !important;" +
     "padding: 4px !important;" +
+    "border-radius: 12px !important;" +
     "}" +
     ".select2-selection__arrow {" +
     "height: 36px !important;" +
@@ -256,20 +258,21 @@ function processSelected() {
     "margin-right: 5px;" +
     "}" +
     'input[type="submit"], input[type="button"], #selectCellsBtn {' +
-    "background-color: #61A5FA;" +
+    "background-color: #1C91FF;" +
     "color: white;" +
     "border: none;" +
+    "border-radius: 12px;" +
     "padding: 10px 20px;" +
     "cursor: pointer;" +
     "transition: background-color 0.2s ease;" +
     "}" +
     'input[type="submit"]:hover, input[type="button"]:hover, #selectCellsBtn:hover {' +
-    "background-color: #4884d9;" +
+    "background-color: #0F7CE8;" +
     "}" +
     "#selectCellsBtn {" +
     "width: 85px;" +
     "padding: 8px 5px;" +
-    "border-radius: 4px;" +
+    "border-radius: 12px;" +
     "display: inline-block;" +
     "}" +
     "#targetColumn {" +
@@ -308,8 +311,8 @@ function processSelected() {
     "</div>" +
     '<div style="margin-bottom: 10px;">' +
     '<label for="cellRange">Input Cells:</label><br>' +
-    '<input type="text" id="cellRange" name="cellRange" required placeholder="e.g., A1:A10" style="width:120px">' +
-    '<input type="button" value="Use Selection" id="selectCellsBtn" style="width:120px">' +
+    '<input type="text" id="cellRange" name="cellRange" required placeholder="e.g., A1:A10" style="width:100px">' +
+    '<input type="button" value="Use Selection" id="selectCellsBtn" style="width:100px">' +
     '<div id="rangeInfo" class="info-text"></div>' +
     "</div>" +
     '<div id="headerRowSection" class="header-row-section">' +
@@ -323,7 +326,7 @@ function processSelected() {
     "</div>" +
     '<div style="margin-bottom: 10px;">' +
     '<label for="instructions">Instructions (optional):</label><br>' +
-    '<textarea id="instructions" name="instructions" rows="4" style="width:99%"></textarea>' +
+    '<textarea id="instructions" name="instructions" rows="4" style="width:90%"></textarea>' +
     "</div>" +
     '<div id="status"></div>' +
     '<div class="button-group">' +
