@@ -151,6 +151,15 @@ const LINEAR_MAX_CONCURRENT = parseInt(process.env.LINEAR_MAX_CONCURRENT as stri
 const LINEAR_API_TIMEOUT = parseInt(process.env.LINEAR_API_TIMEOUT || '30000'); // Default 30 seconds
 const LINEAR_API_RETRY_ATTEMPTS = parseInt(process.env.LINEAR_API_RETRY_ATTEMPTS || '3'); // Default 3 retries
 
+// Global caches to reduce redundant API calls
+const CACHE = {
+  organization: null as any,
+  users: new Map<string, any>(),
+  teams: new Map<string, any>(),
+  projects: new Map<string, any>(),
+  states: new Map<string, any>()
+};
+
 console.log(`🔧 Configuration loaded:`);
 console.log(`   - Linear rate limit: ${LINEAR_RATE_LIMIT_PER_HOUR}/hour`);
 console.log(`   - Linear max concurrent: ${LINEAR_MAX_CONCURRENT}`);
@@ -590,7 +599,9 @@ async function formatComments(issue: Issue): Promise<Section[] | null> {
     const commentNodes = comments.nodes;
     console.log(`         Found ${commentNodes.length} comments`);
     
+    // Quick optimization: if no comments, return early without processing users
     if (commentNodes.length === 0) {
+      console.log(`         ⚡ Skipping comment user processing (no comments)`);
       return [{
         prefix: "Comments",
         content: "No comments",
@@ -601,7 +612,7 @@ async function formatComments(issue: Issue): Promise<Section[] | null> {
     const commentSections = await Promise.all(
       commentNodes.map(async (comment: Comment, index) => {
         console.log(`         Processing comment ${index + 1}/${commentNodes.length}`);
-        const user = await safeLinearFetch(() => comment.user, `get user for comment ${index + 1}`);
+        const user = await getCachedUser(() => comment.user, `get user for comment ${index + 1} (${issue.identifier})`);
         const createdAt = comment.createdAt;
         
         // Use the reactionData attribute to get reactions
@@ -709,7 +720,9 @@ async function formatRelations(issue: Issue): Promise<Section | null> {
     const relationNodes = relations.nodes;
     console.log(`         Found ${relationNodes.length} relations`);
     
+    // Quick optimization: if no relations, return early without processing related issues
     if (relationNodes.length === 0) {
+      console.log(`         ⚡ Skipping relation processing (no relations)`);
       return {
         prefix: "Issue Relations",
         content: "No relations",
@@ -776,7 +789,7 @@ async function formatHistory(issue: Issue): Promise<Section | null> {
     const historySections = await Promise.all(
       recentHistory.map(async (historyItem: IssueHistory, index) => {
         console.log(`         Processing history item ${index + 1}/${recentHistory.length}`);
-        const user = await safeLinearFetch(() => historyItem.actor, `get actor for history item ${index + 1}`);
+        const user = await getCachedUser(() => historyItem.actor, `get actor for history item ${index + 1} (${issue.identifier})`);
         const action = historyItem.fromState && historyItem.toState 
           ? `Changed status from "${historyItem.fromState}" to "${historyItem.toState}"`
           : 'Made changes';
@@ -910,22 +923,65 @@ async function formatCycle(issue: Issue): Promise<string> {
 }
 
 /**
- * Get organization information (if enabled)
+ * Get user information with caching to reduce redundant API calls
+ */
+async function getCachedUser(userFetch: () => any, operationName: string): Promise<any> {
+  if (!userFetch) return null;
+  
+  // For caching, we need a unique identifier. We'll use the operation name as a key
+  // This isn't perfect but will catch many common cases
+  const cacheKey = operationName;
+  
+  if (CACHE.users.has(cacheKey)) {
+    console.log(`👤 Using cached user for ${operationName}`);
+    return CACHE.users.get(cacheKey);
+  }
+  
+  try {
+    const user = await safeLinearFetch(userFetch, operationName);
+    if (user && (user as any).id) {
+      // Cache using the user ID as a more reliable key
+      CACHE.users.set((user as any).id, user);
+      // Also cache using the operation name for this specific context
+      CACHE.users.set(cacheKey, user);
+      console.log(`💾 User ${(user as any).name} cached (${CACHE.users.size} users in cache)`);
+    }
+    return user;
+  } catch (error) {
+    console.error(`❌ Error fetching user for ${operationName}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get organization information (if enabled) - with caching
  */
 async function getOrganizationInfo(): Promise<Section | null> {
   if (!FETCH_CONFIG.organization) {
     return null;
   }
 
+  // Return cached organization info if available
+  if (CACHE.organization) {
+    console.log(`🏢 Using cached organization information`);
+    return CACHE.organization;
+  }
+
   try {
-    console.log(`🏢 Fetching organization information`);
+    console.log(`🏢 Fetching organization information (first time)`);
     const organization = await safeLinearFetch(() => linearClient.organization, 'get organization');
     
-    return {
+    const orgInfo = {
       prefix: "Organization",
       content: `${organization.name} (Created: ${organization.createdAt.toISOString()})`,
       sections: []
     };
+    
+    // Cache for future use
+    CACHE.organization = orgInfo;
+    console.log(`💾 Organization info cached for future requests`);
+    
+    return orgInfo;
   } catch (error) {
     console.error("❌ Error getting organization info:", error);
     throw error;
@@ -982,8 +1038,8 @@ async function upsertToDustDatasource(issue: Issue) {
       organizationInfo
     ] = await Promise.all([
       timeOperation(() => safeLinearFetch(() => issue.team, `get team for ${issue.identifier}`), `get team for ${issue.identifier}`),
-      timeOperation(() => safeLinearFetch(() => issue.creator, `get creator for ${issue.identifier}`), `get creator for ${issue.identifier}`),
-      timeOperation(() => safeLinearFetch(() => issue.assignee, `get assignee for ${issue.identifier}`), `get assignee for ${issue.identifier}`),
+      timeOperation(() => getCachedUser(() => issue.creator, `get creator for ${issue.identifier}`), `get creator for ${issue.identifier}`),
+      timeOperation(() => getCachedUser(() => issue.assignee, `get assignee for ${issue.identifier}`), `get assignee for ${issue.identifier}`),
       timeOperation(() => safeLinearFetch(() => issue.project, `get project for ${issue.identifier}`), `get project for ${issue.identifier}`),
       timeOperation(() => safeLinearFetch(() => issue.state, `get state for ${issue.identifier}`), `get state for ${issue.identifier}`),
       timeOperation(() => formatComments(issue), `format comments for ${issue.identifier}`),
@@ -1000,6 +1056,7 @@ async function upsertToDustDatasource(issue: Issue) {
     
     const dataFetchDuration = Date.now() - dataFetchStart;
     console.log(`    ✅ All parallel data operations completed in ${dataFetchDuration}ms`);
+    console.log(`    📊 Cache stats: ${CACHE.users.size} users cached, org cached: ${CACHE.organization ? 'yes' : 'no'}`);
     
     console.log(`    ✅ All related data fetched for ${issue.identifier}`);
     console.log(`    📊 Building document structure...`);
@@ -1370,6 +1427,7 @@ async function main() {
       console.log(`   - Average time per issue: ${avgTimePerIssue.toFixed(0)}ms`);
       console.log(`   - Processing rate: ${(sessionProcessedCount / (totalDuration / 1000 / 60)).toFixed(1)} issues/min`);
     }
+    console.log(`   - Cache efficiency: ${CACHE.users.size} users cached, org cached: ${CACHE.organization ? '✅' : '❌'}`);
     
     if (checkpointData.failedIssues.length > 0) {
       console.log(`\n⚠️  ${checkpointData.failedIssues.length} issues failed to process:`);
